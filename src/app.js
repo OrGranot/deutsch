@@ -1293,13 +1293,22 @@ function vStats() {
 // In-app chat goes through the Supabase function "lehrer" (it holds the Claude API key).
 // Without it, the same teacher prompt and profile open in claude.ai or ChatGPT on Or's subscription.
 // The teacher's memory lives here, in the progress that syncs to Supabase, not with the model
-// provider: S.chat (recent conversation) and S.tnotes (notes the teacher asked to keep), so any
+// provider: S.chats (conversations) and S.tnotes (notes the teacher asked to keep), so any
 // model picks up where the last one stopped.
 let chat = { busy: false, off: false, draft: "", providers: null, err: null };
-const cmsgs = () => (S.chat ||= []);
+// S.chats: [{ id, t, msgs }], oldest first; S.chatId is the one on screen.
+function curChat() {
+  if (S.chat) { if (S.chat.length) (S.chats ||= []).push({ id: Date.now(), t: Date.now(), msgs: S.chat }); delete S.chat; } // single-chat format from before
+  S.chats ||= [];
+  let c = S.chats.find(x => x.id === S.chatId);
+  if (!c) { c = S.chats[S.chats.length - 1]; if (!c) S.chats.push(c = { id: Date.now(), t: Date.now(), msgs: [] }); S.chatId = c.id; }
+  return c;
+}
+const cmsgs = () => curChat().msgs;
+const chatTitle = c => { const m = c.msgs.find(x => x.role === "user"); return m ? (m.content.length > 60 ? m.content.slice(0, 57) + "…" : m.content) : "New conversation"; };
 const tnotes = () => (S.tnotes ||= []);
-try { const old = JSON.parse(localStorage.getItem("sprechstunde-chat")); if (old && old.length && !S.chat) S.chat = old; localStorage.removeItem("sprechstunde-chat"); } catch (e) {}
-const saveChat = () => { S.chat = cmsgs().slice(-30); save(); };
+try { const old = JSON.parse(localStorage.getItem("sprechstunde-chat")); if (old && old.length && !S.chat && !S.chats) S.chat = old; localStorage.removeItem("sprechstunde-chat"); } catch (e) {}
+const saveChat = () => { const c = curChat(); c.msgs = c.msgs.slice(-40); S.chats = S.chats.filter(x => x.msgs.length || x.id === S.chatId).slice(-20); save(); };
 function applyMemory(m) {
   if (!m) return;
   const keep = tnotes().filter((_, i) => !(m.remove || []).includes(i + 1));
@@ -1358,6 +1367,14 @@ function memoryPanel() {
     ${n.length ? `<ol class="notes">${n.map((x, i) => `<li><span>${esc(x.text)}</span><button class="linkbtn small" data-act="noteDel" data-i="${i}" aria-label="Forget this">Forget</button></li>`).join("")}</ol>` : `<p class="small muted">Nothing yet. I write notes here as we talk: your goals, mistakes you repeat, what we agreed to practise.</p>`}
     <p class="small muted">These notes are saved with your progress in the app, so every model (and Claude or ChatGPT through the buttons) gets them.</p></details>`;
 }
+function historyPanel() {
+  curChat();
+  const old = S.chats.filter(c => c.msgs.length).slice().reverse();
+  if (!old.length || (old.length === 1 && old[0].id === S.chatId)) return "";
+  const day = t => new Date(t).toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+  return `<details class="panel history" ${chat.histOpen ? "open" : ""}><summary class="small" data-act="histToggle">Conversations (${old.length})</summary>
+    <ul class="convs">${old.map(c => `<li class="${c.id === S.chatId ? "on" : ""}"><button class="conv" data-act="chatOpen" data-id="${c.id}" ${chat.busy ? "disabled" : ""}><span>${esc(chatTitle(c))}</span><span class="small muted">${day(c.t || c.id)} · ${c.msgs.length} messages</span></button><button class="linkbtn small" data-act="chatDel" data-id="${c.id}" aria-label="Delete this conversation">Delete</button></li>`).join("")}</ul></details>`;
+}
 function vLehrer() {
   setTimeout(() => { const l = $("#chatlog"); if (l && !l.dataset.seen) { l.dataset.seen = 1; l.scrollTop = l.scrollHeight; } }, 0);
   if (CFG && auth && chat.providers === null) loadProviders();
@@ -1371,6 +1388,7 @@ function vLehrer() {
     ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${mdLite(m.content)}<div class="row between"><button class="icon-btn" data-act="chatSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button>${m.by ? `<span class="small muted">${esc(modelLabel(m.by))}</span>` : ""}</div></div></div>`
     : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
   return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p>${picker}</section>
+  ${historyPanel()}
   <section class="panel chat">
     <div class="chatlog" id="chatlog">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
@@ -1381,7 +1399,7 @@ function vLehrer() {
     <div class="chatin"><textarea id="lehrerIn" class="field ${dict ? "live" : ""}" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
       ${dict ? `<div class="recording" role="status"><span class="dot"></span> Recording… speak German, tap Stop when you're done</div>` : ""}
       <div class="row">${micBlocked ? "" : dict ? `<button class="btn rec-stop" data-act="chatMic" aria-label="Stop recording">■ Stop</button>` : `<button class="icon-btn" data-act="chatMic" aria-label="Start recording">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
-    ${cmsgs().length ? `<button class="linkbtn small" data-act="chatClear">New conversation (my notes stay)</button>` : ""}
+    ${cmsgs().length ? `<button class="linkbtn small" data-act="chatNew" ${chat.busy ? "disabled" : ""}>New conversation (this one is kept, and my notes stay)</button>` : ""}
   </section>
   ${memoryPanel()}
   <details class="panel"><summary class="small">Use my Claude or ChatGPT subscription instead</summary>${sub}</details>`;
@@ -1389,17 +1407,19 @@ function vLehrer() {
 async function chatSend(text, retry) {
   if (chat.busy) return;
   if (dict) { stopDictation(); if (text == null) text = chat.draft; }
-  if (!retry) { text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text) return; cmsgs().push({ role: "user", content: text, t: Date.now() }); chat.draft = ""; }
+  const conv = curChat();
+  if (!retry) { text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text) return; conv.msgs.push({ role: "user", content: text, t: Date.now() }); chat.draft = ""; }
+  conv.t = Date.now();
   chat.err = null; chat.busy = true; saveChat(); render(); scrollChat();
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3);
   try {
     if (!(await freshToken())) throw new Error("Sign in again to talk to your teacher.");
-    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: cmsgs().map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
+    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: conv.msgs.map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
     const d = await r.json().catch(() => ({}));
     if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.providers = []; throw new Error("The teacher isn't set up on the server yet."); }
     if (!r.ok || !d.reply) throw new Error(d.error || d.message || `The teacher couldn't answer (error ${r.status}).`);
     applyMemory(d.memory);
-    cmsgs().push({ role: "assistant", content: d.reply, by: d.provider, t: Date.now() }); saveChat();
+    conv.msgs.push({ role: "assistant", content: d.reply, by: d.provider, t: Date.now() }); conv.t = Date.now(); saveChat();
   } catch (e) {
     // keep Or's message; show what went wrong in the chat with a retry button
     chat.err = e.name === "AbortError" ? "No answer after 90 seconds. Try again, or pick another model." : (e.message || "Couldn't reach the teacher. Check your connection.");
@@ -1549,7 +1569,10 @@ const A = {
   chatMic: () => chatMic(),
   chatIns: d => { const i = $("#lehrerIn"); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + d.ch + i.value.slice(p); chat.draft = i.value; i.focus(); i.setSelectionRange(p + 1, p + 1); },
   noteDel: d => { tnotes().splice(+d.i, 1); save(); render(); },
-  chatClear: () => { S.chat = []; saveChat(); render(); },
+  chatNew: () => { if (chat.busy) return; if (dict) stopDictation(); const c = { id: Date.now(), t: Date.now(), msgs: [] }; curChat(); S.chats.push(c); S.chatId = c.id; chat.err = null; chat.draft = ""; saveChat(); render(); },
+  chatOpen: d => { if (chat.busy) return; if (dict) stopDictation(); S.chatId = +d.id; chat.err = null; chat.histOpen = false; saveChat(); render(); const l = $("#chatlog"); if (l) l.scrollTop = l.scrollHeight; },
+  chatDel: d => { S.chats = (S.chats || []).filter(c => c.id !== +d.id); if (S.chatId === +d.id) S.chatId = null; chat.histOpen = true; saveChat(); render(); },
+  histToggle: (d, el) => { chat.histOpen = el.parentElement.open = !el.parentElement.open; },
   copyTeacher: () => navigator.clipboard?.writeText(subPrompt()).then(() => toast("Copied. Paste it into Claude or ChatGPT."), () => toast("Couldn't copy")),
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
