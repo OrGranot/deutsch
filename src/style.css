@@ -288,3 +288,10 @@ a.btn { text-decoration: none; color: inherit; }
 .modelpick select { width: auto; padding: 6px 10px; }
 .notes { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .notes li span { margin-right: 8px; }
+.recording { display: flex; align-items: center; gap: 8px; color: var(--bad); font-weight: 700; font-size: .9rem; }
+.recording .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bad); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.chatin textarea.live { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(204,47,71,.25); }
+.btn.rec-stop { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .recording .dot, .btn.rec-stop { animation: none; } }
+.chatlog { display: flex; flex-direction: column; gap: 12px; max-height: max(240px, calc(100dvh - 430px)); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }

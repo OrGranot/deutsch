@@ -1359,6 +1359,7 @@ function memoryPanel() {
     <p class="small muted">These notes are saved with your progress in the app, so every model (and Claude or ChatGPT through the buttons) gets them.</p></details>`;
 }
 function vLehrer() {
+  setTimeout(() => { const l = $("#chatlog"); if (l && !l.dataset.seen) { l.dataset.seen = 1; l.scrollTop = l.scrollHeight; } }, 0);
   if (CFG && auth && chat.providers === null) loadProviders();
   const sub = `<div class="row" style="flex-wrap:wrap;justify-content:center"><a class="btn" href="${esc(chatUrl("claude"))}" target="_blank" rel="noopener">Open in Claude</a><a class="btn" href="${esc(chatUrl("chatgpt"))}" target="_blank" rel="noopener">Open in ChatGPT</a><button class="btn ghost" data-act="copyTeacher">Copy prompt</button></div>`;
   if (!lehrerReady()) return `<section class="hero"><h1>Lehrer</h1><p class="muted">Your German teacher, with your progress.</p></section>
@@ -1371,12 +1372,15 @@ function vLehrer() {
     : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
   return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p>${picker}</section>
   <section class="panel chat">
+    <div class="chatlog" id="chatlog">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
     ${chat.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}
     ${chat.err && !chat.busy ? `<div class="verdict bad"><div class="vicon">!</div><div><b>${esc(chat.err)}</b>${cmsgs().length && cmsgs()[cmsgs().length - 1].role === "user" ? `<div><button class="btn small" data-act="chatRetry">Try again</button></div>` : ""}</div></div>` : ""}
     ${!cmsgs().length && !chat.busy ? `<div class="row" style="flex-wrap:wrap">${STARTERS.map(s => `<button class="btn ghost small starter" data-act="chatStarter" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
-    <div class="chatin"><textarea id="lehrerIn" class="field" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
-      <div class="row">${micBlocked ? "" : `<button class="icon-btn" data-act="chatMic" aria-label="Speak">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
+    </div>
+    <div class="chatin"><textarea id="lehrerIn" class="field ${dict ? "live" : ""}" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
+      ${dict ? `<div class="recording" role="status"><span class="dot"></span> Recording… speak German, tap Stop when you're done</div>` : ""}
+      <div class="row">${micBlocked ? "" : dict ? `<button class="btn rec-stop" data-act="chatMic" aria-label="Stop recording">■ Stop</button>` : `<button class="icon-btn" data-act="chatMic" aria-label="Start recording">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
     ${cmsgs().length ? `<button class="linkbtn small" data-act="chatClear">New conversation (my notes stay)</button>` : ""}
   </section>
   ${memoryPanel()}
@@ -1384,6 +1388,7 @@ function vLehrer() {
 }
 async function chatSend(text, retry) {
   if (chat.busy) return;
+  if (dict) { stopDictation(); if (text == null) text = chat.draft; }
   if (!retry) { text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text) return; cmsgs().push({ role: "user", content: text, t: Date.now() }); chat.draft = ""; }
   chat.err = null; chat.busy = true; saveChat(); render(); scrollChat();
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3);
@@ -1401,10 +1406,38 @@ async function chatSend(text, retry) {
   } finally { clearTimeout(timer); }
   chat.busy = false; if (view === "lehrer") { render(); scrollChat(); }
 }
-const scrollChat = () => { const b = $(".chatin"); if (b) b.scrollIntoView({ block: "end" }); };
-async function chatMic() {
-  try { const alts = await listen(x => { const i = $("#lehrerIn"); if (i) i.value = x; }); if (alts.length) { const i = $("#lehrerIn"); if (i) i.value = alts[0]; chat.draft = alts[0]; } }
-  catch (err) { micError(err); render(); }
+const scrollChat = () => { const l = $("#chatlog"); if (l) l.scrollTop = l.scrollHeight; const b = $(".chatin"); if (b) b.scrollIntoView({ block: "nearest" }); };
+// Dictation in the chat: adds to what's already typed and keeps listening (restarting after
+// pauses) until Or taps Stop or sends.
+let dict = null;
+const joinText = (a, b) => !b ? a : !a ? b : a + (/\s$/.test(a) ? "" : " ") + b.trim();
+function chatMic() {
+  if (dict) return stopDictation();
+  if (!SR) { micBlocked = true; return render(); }
+  if (synth) synth.cancel(); if (player) player.pause();
+  dict = { base: $("#lehrerIn")?.value || chat.draft || "", interim: "" };
+  const show = () => { const v = joinText(dict.base, dict.interim); chat.draft = dict.base; const i = $("#lehrerIn"); if (i) { i.value = v; i.scrollTop = i.scrollHeight; } };
+  const start = () => {
+    const r = new SR(); r.lang = "de-DE"; r.interimResults = true; r.continuous = true; dict.rec = r;
+    r.onresult = e => {
+      if (!dict || dict.rec !== r) return;
+      let interim = "";
+      for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) dict.base = joinText(dict.base, x[0].transcript); else interim += x[0].transcript; }
+      dict.interim = interim; show();
+    };
+    r.onerror = e => { if (!dict || dict.rec !== r) return; if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { const err = e.error; stopDictation(); micError(err); render(); } };
+    r.onend = () => { if (dict && dict.rec === r) { dict.base = joinText(dict.base, dict.interim); dict.interim = ""; show(); try { start(); } catch (e) { stopDictation(); } } };
+    r.start();
+  };
+  try { start(); } catch (e) { dict = null; return toast("Couldn't start the microphone."); }
+  render();
+}
+function stopDictation() {
+  if (!dict) return;
+  const d = dict; dict = null;
+  d.base = joinText(d.base, d.interim); chat.draft = d.base;
+  try { d.rec && d.rec.stop(); } catch (e) {}
+  if (view === "lehrer") { render(); const i = $("#lehrerIn"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
 
 // ---------- actions ----------
@@ -1530,7 +1563,7 @@ const A = {
   teachTalk: () => teachTalk(), teachTalkType: () => teachTalk(),
   teachDontKnow: () => teachDontKnow(), teachOverride: () => teachOverride(),
   teachExCheck: () => teachExCheck(),
-  nav: d => { view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
+  nav: d => { if (dict) stopDictation(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },
@@ -1621,7 +1654,7 @@ document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const f = A[el.dataset.act]; if (f) { e.preventDefault(); f(el.dataset, el); }
 });
-document.addEventListener("input", e => { if (e.target.id === "lehrerIn") chat.draft = e.target.value; });
+document.addEventListener("input", e => { if (e.target.id === "lehrerIn") { chat.draft = e.target.value; if (dict) { dict.base = e.target.value; dict.interim = ""; } } });
 document.addEventListener("change", e => {
   const k = e.target.dataset.set; if (!k) return;
   S.settings[k] = k === "voice" || k === "lehrerModel" ? e.target.value : +e.target.value; save(); toast("Saved");
