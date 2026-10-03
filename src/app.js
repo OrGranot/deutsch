@@ -1522,7 +1522,7 @@ const A = {
   teachTalk: () => teachTalk(), teachTalkType: () => teachTalk(),
   teachDontKnow: () => teachDontKnow(), teachOverride: () => teachOverride(),
   teachExCheck: () => teachExCheck(),
-  nav: d => { view = d.view; if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
+  nav: d => { view = d.view; if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },
