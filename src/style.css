@@ -270,3 +270,17 @@ textarea.field { width: 100%; min-height: 110px; font-family: ui-monospace, Menl
 .lvrow .bar { height: 8px; }
 .pqopts { flex-direction: column; width: 100%; max-width: 420px; }
 .pqopts .opt { width: 100%; font-size: 1.1rem; padding: 12px 14px; }
+
+/* Lehrer chat */
+.chat { display: flex; flex-direction: column; gap: 12px; }
+.chat .teacher { max-width: none; }
+.chat .teacher .bubble { overflow-wrap: anywhere; }
+.chat .teacher .icon-btn { margin-top: 6px; }
+.me { display: flex; justify-content: flex-end; }
+.me .bubble { background: var(--accent); color: var(--accent-ink); border-radius: 14px 4px 14px 14px; padding: 10px 14px; line-height: 1.45; max-width: 85%; overflow-wrap: anywhere; }
+.chatin { display: flex; flex-direction: column; gap: 8px; }
+.chatin textarea { width: 100%; resize: vertical; min-height: 64px; font: inherit; }
+.chatin .row { justify-content: flex-end; flex-wrap: wrap; }
+.chatin .umlauts { margin-right: auto; }
+a.btn { text-decoration: none; }
+.chat .starter { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
