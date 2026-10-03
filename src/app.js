@@ -313,14 +313,14 @@ const playBtn = (text, label = "Listen") => `<button class="icon-btn" data-act="
 
 // ---------- views ----------
 function render() {
-  const tabs = [["home", "Lernen", ICON.home], ["stats", "Fortschritt", ICON.chart]];
+  const tabs = [["home", "Lernen", ICON.home], ["lehrer", "Lehrer", ICON.chat], ["stats", "Fortschritt", ICON.chart]];
   if (CFG && !auth) { $("#app").innerHTML = `<main id="main">${vSignin()}</main>`; const f = $("[autofocus]"); if (f) f.focus(); return; }
   $("#app").innerHTML = `
   <header class="top"><div class="top-in">
     <div class="brand">Sprechstunde <small>${curLesson().level}</small></div>
     <nav class="tabs" aria-label="Sections" ${view === "teach" ? "hidden" : ""}>${tabs.map(([k, l, i]) => `<button class="tab" data-act="nav" data-view="${k}" ${view === k || (k === "home" && ["review", "speak", "sounds"].includes(view)) || (k === "stats" && view === "course") ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}</nav>
   </div></header>
-  <main id="main">${({ home: vHome, course: vCourse, review: vReview, speak: vSpeak, stats: vStats, sounds: vSounds, teach: vTeach })[view]()}</main>`;
+  <main id="main">${({ home: vHome, course: vCourse, review: vReview, speak: vSpeak, stats: vStats, sounds: vSounds, teach: vTeach, lehrer: vLehrer })[view]()}</main>`;
   const f = $("[autofocus]"); if (f) f.focus();
 }
 
@@ -1059,7 +1059,7 @@ async function teachListen(retry) {
       const w = WORDS[t.id], d = judgeWord(w, a.alts, a.typed);
       if (retry) { T.retry = d; if (d.v !== "ok") say(w.de); render(); return; }
       T.r = d; T.n++;
-      if (d.v === "ok") { T.ok++; addXP(2); chime(false); } else { T.mistakes.push(t.id); requeue(t, 3); }
+      if (d.v === "ok") { T.ok++; addXP(2); chime(false); } else { T.mistakes.push(t.id); requeue(t, 3); logMiss({ w: t.id, k: d.kind }); }
       if (t.graded && !t.retest) {
         T.prev = card(t.id);
         if (t.old && !S.cards[t.id] && d.v === "ok") { S.cards[t.id] = { ...card(t.id), s: "rev", ivl: 10, due: Date.now() + 10 * DAY, reps: 1, cons: 1, last: Date.now() }; save(); }
@@ -1108,7 +1108,7 @@ function teachExCheck() {
   const full = e.type === "gap" ? (() => { let k = 0; return e.q.replace(/___/g, () => e.a[k++].split("/")[0]).replace(/\s*\([^)]*\)\s*$/, ""); })() : e.type === "mc" ? e.q.replace("___", e.opts[e.a]) : e.a;
   T.n++;
   if (ok) { T.ok++; course().exOk[t.lesson + ":" + t.i] = Date.now(); addXP(t.retest ? 2 : 5); chime(false); }
-  else requeue(t, 2);
+  else { requeue(t, 2); logMiss({ ex: t.lesson + ":" + t.i, got: e.type === "mc" ? e.opts[+box.querySelector('[aria-pressed="true"]').dataset.k] : e.type === "gap" ? [...box.querySelectorAll(".gapin")].map(i => i.value.trim()).join(" … ") : [...box.querySelectorAll(`[data-line="${t.i}"] .tile`)].map(x => x.textContent).join(" ") }); }
   T.r = ok ? { v: "ok", title: "Richtig!", detail: e.why ? esc(e.why) : "" } : { v: "bad", title: "Not quite", detail: `Correct: <b>${esc(full)}</b>${e.why ? `<br>${esc(e.why)}` : ""}<br><span class="muted">You'll get this one again in a moment.</span>` };
   if (e.type === "gap") box.querySelectorAll(".gapin").forEach((inp, k) => { const r = e.a[k].split("/").some(x => norm(x) === norm(inp.value)); inp.classList.add(r ? "right" : "wrong"); inp.readOnly = true; });
   box.querySelectorAll("button").forEach(b => b.disabled = true);
@@ -1120,7 +1120,7 @@ function teachExCheck() {
 
 function teachDontKnow() {
   const t = task(), w = WORDS[t.id];
-  T.r = { v: "bad", grade: 0, kind: "dk", title: "Here it is", detail: "Listen, then say it once. It comes back in a moment." }; T.n++; T.mistakes.push(t.id); requeue(t, 3);
+  T.r = { v: "bad", grade: 0, kind: "dk", title: "Here it is", detail: "Listen, then say it once. It comes back in a moment." }; T.n++; T.mistakes.push(t.id); requeue(t, 3); logMiss({ w: t.id, k: "dk" });
   if (t.graded && !t.retest) { T.prev = card(t.id); gradeWord(t.id, 0); }
   render(); say(w.de);
 }
@@ -1128,7 +1128,7 @@ function teachOverride() {
   // the recogniser got it wrong: undo the miss
   const t = task(); if (!T.r) return;
   if (t.graded && !t.retest && T.prev) { S.cards[t.id] = T.prev; gradeWord(t.id, 2); }
-  T.ok++; T.mistakes = T.mistakes.filter(x => x !== t.id);
+  T.ok++; T.mistakes = T.mistakes.filter(x => x !== t.id); if (S.mlog?.length && S.mlog[S.mlog.length - 1].w === t.id) S.mlog.pop();
   const k = T.tasks.findIndex((x, j) => j > T.i && x.retest && x.id === t.id); if (k > 0) T.tasks.splice(k, 1);
   addXP(2); nextTask();
 }
@@ -1288,6 +1288,83 @@ function vStats() {
   </section>`;
 }
 
+// ---------- Lehrer: chat with a German teacher that knows this progress ----------
+// In-app chat goes through the Supabase function "lehrer" (it holds the Claude API key).
+// Without it, the same teacher prompt and profile open in claude.ai or ChatGPT on Or's subscription.
+const CHAT_KEY = "sprechstunde-chat";
+let chat = { msgs: [], busy: false, off: false, draft: "" };
+try { chat.msgs = JSON.parse(localStorage.getItem(CHAT_KEY)) || []; } catch (e) {}
+const saveChat = () => { chat.msgs = chat.msgs.slice(-40); try { localStorage.setItem(CHAT_KEY, JSON.stringify(chat.msgs)); } catch (e) {} };
+function logMiss(o) { (S.mlog ||= []).push({ ...o, t: Date.now() }); S.mlog = S.mlog.slice(-40); }
+const wordLine = w => `${w.de}${w.pl && w.art ? ` (Pl. ${w.pl})` : ""} = ${w.en}`;
+function learnerProfile() {
+  const c = course(), L = curLesson(), now = Date.now(), out = [];
+  const gi = c.gi?.[L.id] || 0;
+  out.push(`Level: ${c.placed ? L.level : "not placed yet (placement check not done)"}. Current lesson: ${L.level} Lektion ${L.id} "${L.title}" (${L.en || ""}).`);
+  out.push(`Grammar in this lesson: ${L.grammar.map((g, i) => g.t + (i < gi ? " (covered)" : i === gi ? " (next)" : "")).join("; ")}.`);
+  if (L.cando) out.push(`Lesson goals: ${L.cando.join("; ")}.`);
+  const done = LESSONS.filter(x => S.lessons[x.id]?.done).length, skipped = LESSONS.filter(x => S.lessons[x.id]?.skipped).length;
+  out.push(`Lessons finished: ${done} of ${LESSONS.length}${skipped ? `, ${skipped} skipped after the placement check` : ""}. Words seen: ${Object.keys(S.cards).length}. Streak: ${streak()} days.`);
+  const res = Object.entries(c.results || {}).map(([lv, r]) => `${lv} ${r.kind === "pcheck" ? "placement" : "level check"} ${Math.round(r.rate * 100)}%`);
+  if (res.length) out.push(`Checks: ${res.join(", ")} (80% passes).`);
+  if (c.remedial) out.push(`Currently in strengthening lessons for ${c.remedial.lv || "the last level"} before retaking the check.`);
+  const rates = (c.rates || []).slice(-5); if (rates.length) out.push(`Right first time in the last lessons: ${rates.map(r => Math.round(r * 100) + "%").join(", ")}.`);
+  const hard = Object.keys(S.cards).filter(id => WORDS[id] && struggling(card(id))).sort((a, b) => card(b).fails - card(a).fails).slice(0, 15);
+  if (hard.length) out.push(`Words Or keeps missing: ${hard.map(id => `${wordLine(WORDS[id])} [missed ${card(id).fails}x]`).join("; ")}.`);
+  const art = Object.entries(S.gender || {}).filter(([id, x]) => WORDS[id] && x.w > x.r / 2).sort((a, b) => b[1].w - a[1].w).slice(0, 8).map(([id]) => WORDS[id].de);
+  if (art.length) out.push(`Articles Or gets wrong: ${art.join(", ")}.`);
+  const recent = (S.mlog || []).filter(m => now - m.t < 14 * DAY).slice(-20);
+  const kinds = { article: "wrong article", noart: "forgot the article", pron: "pronunciation/spelling close but off", other: "said a different word", miss: "wrong", dk: "didn't know it" };
+  const wm = recent.filter(m => m.w && WORDS[m.w]).map(m => `${WORDS[m.w].de} (${kinds[m.k] || m.k || "missed"})`);
+  if (wm.length) out.push(`Recent word mistakes (last 2 weeks): ${[...new Set(wm)].join("; ")}.`);
+  const em = recent.filter(m => m.ex).map(m => { const [lid, i] = m.ex.split(":"), e = LESSON[lid]?.ex[i]; return e ? `"${e.q || e.a}" → correct: ${e.type === "mc" ? e.opts[e.a] : e.type === "gap" ? e.a.join(" … ") : e.a}${m.got ? ` (Or answered: ${m.got})` : ""}` : null; }).filter(Boolean);
+  if (em.length) out.push(`Recent exercise mistakes: ${[...new Set(em)].slice(-8).join("; ")}.`);
+  const today_ = S.days[today()]; out.push(`Today: ${today_ ? `${today_.lessons || 0} lesson(s), ${today_.xp || 0} XP` : "no practice yet"}.`);
+  return out.join("\n");
+}
+const TEACHER_PROMPT = `You are my personal German teacher. I'm working from A1 towards B2 with my app "Sprechstunde". Below is my current progress from the app. Use it: match my level (simple German with English help at A1/A2, more German from B1), focus on the words and grammar I keep getting wrong, and refer to them concretely. When I write German, answer the content first, then correct up to three mistakes (corrected sentence, changes in bold, the rule in one line). When I ask what to practise, give me a short exercise (3 to 5 items) right away and check my answers. Keep replies short, one question at a time, always give der/die/das and the plural for nouns, and be honest when I'm wrong.`;
+const subPrompt = () => `${TEACHER_PROMPT}\n\nMy progress:\n${learnerProfile()}\n\nStart by telling me in two lines what you'd work on with me today, then give me the first exercise.`;
+const chatUrl = (site) => (site === "claude" ? "https://claude.ai/new?q=" : "https://chatgpt.com/?q=") + encodeURIComponent(subPrompt());
+const mdLite = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>").replace(/\n/g, "<br>");
+const STARTERS = ["Was soll ich heute üben?", "Explain my most common mistake", "Lass uns auf Deutsch plaudern", "Quiz me on my tricky words"];
+const lehrerReady = () => CFG && auth && !chat.off;
+function vLehrer() {
+  const sub = `<div class="row" style="flex-wrap:wrap;justify-content:center"><a class="btn" href="${esc(chatUrl("claude"))}" target="_blank" rel="noopener">Open in Claude</a><a class="btn" href="${esc(chatUrl("chatgpt"))}" target="_blank" rel="noopener">Open in ChatGPT</a><button class="btn ghost" data-act="copyTeacher">Copy prompt</button></div>`;
+  if (!lehrerReady()) return `<section class="hero"><h1>Lehrer</h1><p class="muted">Your German teacher, with your progress.</p></section>
+    <section class="panel today">${teacherSays(chat.off ? "The in-app teacher isn't switched on yet. Until then, open me in Claude or ChatGPT: your level, your tricky words and recent mistakes go along." : "Open me in Claude or ChatGPT. Your level, your tricky words and recent mistakes go along, so I know where to start.")}${sub}<p class="small muted">Uses your own Claude or ChatGPT subscription.</p></section>`;
+  const msgs = chat.msgs.map((m, i) => m.role === "assistant"
+    ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${mdLite(m.content)}<div><button class="icon-btn" data-act="chatSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button></div></div></div>`
+    : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
+  return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p></section>
+  <section class="panel chat">
+    ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
+    ${chat.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}
+    ${!chat.msgs.length && !chat.busy ? `<div class="row" style="flex-wrap:wrap">${STARTERS.map(s => `<button class="btn ghost small starter" data-act="chatStarter" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
+    <div class="chatin"><textarea id="lehrerIn" class="field" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
+      <div class="row">${micBlocked ? "" : `<button class="icon-btn" data-act="chatMic" aria-label="Speak">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
+    ${chat.msgs.length ? `<button class="linkbtn small" data-act="chatClear">New conversation</button>` : ""}
+  </section>
+  <details class="panel"><summary class="small">Use my Claude or ChatGPT subscription instead</summary>${sub}</details>`;
+}
+async function chatSend(text) {
+  text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text || chat.busy) return;
+  chat.msgs.push({ role: "user", content: text }); chat.draft = ""; chat.busy = true; saveChat(); render(); scrollChat();
+  try {
+    if (!(await freshToken())) throw new Error("Sign in again to talk to your teacher.");
+    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ messages: chat.msgs.map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.msgs.pop(); chat.draft = text; throw null; }
+    if (!r.ok || !d.reply) throw new Error(d.error || d.message || "The teacher couldn't answer right now.");
+    chat.msgs.push({ role: "assistant", content: d.reply }); saveChat();
+  } catch (e) { if (e) { toast(e.message); chat.msgs.pop(); chat.draft = text; saveChat(); } }
+  chat.busy = false; if (view === "lehrer") { render(); scrollChat(); }
+}
+const scrollChat = () => { const b = $(".chatin"); if (b) b.scrollIntoView({ block: "end" }); };
+async function chatMic() {
+  try { const alts = await listen(x => { const i = $("#lehrerIn"); if (i) i.value = x; }); if (alts.length) { const i = $("#lehrerIn"); if (i) i.value = alts[0]; chat.draft = alts[0]; } }
+  catch (err) { micError(err); render(); }
+}
+
 // ---------- actions ----------
 // ---------- cloud sync (hosted build only, configured by window.SYNC_CONFIG) ----------
 // Progress lives in localStorage as before; when signed in it is also saved to a private
@@ -1390,6 +1467,13 @@ const A = {
   setPassword: () => setPassword($("#newpw").value),
   signinAgain: () => { signin = { email: signin.email }; render(); },
   signOut: () => { setAuth(null); render(); },
+  chatSend: () => chatSend(),
+  chatStarter: d => chatSend(d.text),
+  chatSay: d => sayDevice(chat.msgs[+d.i].content.replace(/\*\*?|\([^)]*\)/g, "")),
+  chatMic: () => chatMic(),
+  chatIns: d => { const i = $("#lehrerIn"); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + d.ch + i.value.slice(p); chat.draft = i.value; i.focus(); i.setSelectionRange(p + 1, p + 1); },
+  chatClear: () => { chat.msgs = []; saveChat(); render(); },
+  copyTeacher: () => navigator.clipboard?.writeText(subPrompt()).then(() => toast("Copied. Paste it into Claude or ChatGPT."), () => toast("Couldn't copy")),
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
   teachNext: () => nextTask(),
@@ -1493,6 +1577,7 @@ document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const f = A[el.dataset.act]; if (f) { e.preventDefault(); f(el.dataset, el); }
 });
+document.addEventListener("input", e => { if (e.target.id === "lehrerIn") chat.draft = e.target.value; });
 document.addEventListener("change", e => {
   const k = e.target.dataset.set; if (!k) return;
   S.settings[k] = k === "voice" ? e.target.value : +e.target.value; save(); toast("Saved");
@@ -1506,6 +1591,7 @@ document.addEventListener("keydown", e => {
     if (b && !(e.key === "Enter" && e.target.matches("button"))) { e.preventDefault(); b.click(); }
     return;
   }
+  if (e.target.id === "lehrerIn") { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chatSend(); } return; }
   if (e.target.matches("input, textarea, select")) { if (e.key === "Enter" && e.target.id === "typein") { e.preventDefault(); A.checkType(); } if (e.key === "Enter" && e.target.id === "pw") (signin.mode === "create" ? A.createPassword() : A.pwSignin()); return; }
   if (view === "review" && gsess && gsess.i < gsess.q.length) {
     if (!gsess.picked && ["1", "2", "3"].includes(e.key)) A.gpick({ a: ["der", "die", "das"][+e.key - 1] });
