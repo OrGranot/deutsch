@@ -307,6 +307,7 @@ a.btn { text-decoration: none; color: inherit; }
 .chatin textarea.live { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(204,47,71,.25); }
 .btn.rec-stop { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .recording .dot, .btn.rec-stop { animation: none; } }
+.chatlog { display: flex; flex-direction: column; gap: 12px; max-height: max(240px, calc(100dvh - 430px)); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
 </style>
 <script src="config.js"></script>
 </head>
@@ -5780,6 +5781,7 @@ function memoryPanel() {
     <p class="small muted">These notes are saved with your progress in the app, so every model (and Claude or ChatGPT through the buttons) gets them.</p></details>`;
 }
 function vLehrer() {
+  setTimeout(() => { const l = $("#chatlog"); if (l && !l.dataset.seen) { l.dataset.seen = 1; l.scrollTop = l.scrollHeight; } }, 0);
   if (CFG && auth && chat.providers === null) loadProviders();
   const sub = `<div class="row" style="flex-wrap:wrap;justify-content:center"><a class="btn" href="${esc(chatUrl("claude"))}" target="_blank" rel="noopener">Open in Claude</a><a class="btn" href="${esc(chatUrl("chatgpt"))}" target="_blank" rel="noopener">Open in ChatGPT</a><button class="btn ghost" data-act="copyTeacher">Copy prompt</button></div>`;
   if (!lehrerReady()) return `<section class="hero"><h1>Lehrer</h1><p class="muted">Your German teacher, with your progress.</p></section>
@@ -5792,10 +5794,12 @@ function vLehrer() {
     : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
   return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p>${picker}</section>
   <section class="panel chat">
+    <div class="chatlog" id="chatlog">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
     ${chat.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}
     ${chat.err && !chat.busy ? `<div class="verdict bad"><div class="vicon">!</div><div><b>${esc(chat.err)}</b>${cmsgs().length && cmsgs()[cmsgs().length - 1].role === "user" ? `<div><button class="btn small" data-act="chatRetry">Try again</button></div>` : ""}</div></div>` : ""}
     ${!cmsgs().length && !chat.busy ? `<div class="row" style="flex-wrap:wrap">${STARTERS.map(s => `<button class="btn ghost small starter" data-act="chatStarter" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
+    </div>
     <div class="chatin"><textarea id="lehrerIn" class="field ${dict ? "live" : ""}" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
       ${dict ? `<div class="recording" role="status"><span class="dot"></span> Recording… speak German, tap Stop when you're done</div>` : ""}
       <div class="row">${micBlocked ? "" : dict ? `<button class="btn rec-stop" data-act="chatMic" aria-label="Stop recording">■ Stop</button>` : `<button class="icon-btn" data-act="chatMic" aria-label="Start recording">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
@@ -5824,7 +5828,7 @@ async function chatSend(text, retry) {
   } finally { clearTimeout(timer); }
   chat.busy = false; if (view === "lehrer") { render(); scrollChat(); }
 }
-const scrollChat = () => { const b = $(".chatin"); if (b) b.scrollIntoView({ block: "end" }); };
+const scrollChat = () => { const l = $("#chatlog"); if (l) l.scrollTop = l.scrollHeight; const b = $(".chatin"); if (b) b.scrollIntoView({ block: "nearest" }); };
 // Dictation in the chat: adds to what's already typed and keeps listening (restarting after
 // pauses) until Or taps Stop or sends.
 let dict = null;

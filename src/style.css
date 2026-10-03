@@ -294,3 +294,4 @@ a.btn { text-decoration: none; color: inherit; }
 .chatin textarea.live { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(204,47,71,.25); }
 .btn.rec-stop { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .recording .dot, .btn.rec-stop { animation: none; } }
+.chatlog { display: flex; flex-direction: column; gap: 12px; max-height: max(240px, calc(100dvh - 430px)); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
