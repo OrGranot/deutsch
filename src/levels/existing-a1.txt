@@ -1,0 +1,400 @@
+Hallo
+Guten Morgen
+Guten Tag
+Guten Abend
+Gute Nacht
+Tschüss
+Auf Wiedersehen
+Wie geht's?
+Freut mich
+Danke
+Bitte
+Entschuldigung
+ja
+nein
+gut
+heißen
+sein
+kommen
+wohnen
+sprechen
+der Name
+der Vorname
+der Familienname
+das Land
+die Stadt
+die Sprache
+der Herr
+die Frau
+die Adresse
+die Telefonnummer
+die Zahl
+wer
+wie
+woher
+wo
+was
+und
+null
+eins
+zwei
+drei
+vier
+fünf
+sechs
+sieben
+acht
+neun
+zehn
+elf
+zwölf
+zwanzig
+die Familie
+die Mutter
+der Vater
+die Eltern
+der Bruder
+die Schwester
+die Geschwister
+der Sohn
+die Tochter
+das Kind
+das Baby
+der Mann
+die Oma
+der Opa
+die Großeltern
+der Freund
+die Freundin
+das Jahr
+haben
+lernen
+alt
+jung
+groß
+klein
+verheiratet
+ledig
+Deutsch
+Englisch
+Hebräisch
+dreißig
+vierzig
+fünfzig
+hundert
+die Wohnung
+das Haus
+das Zimmer
+die Küche
+das Bad
+das Schlafzimmer
+das Wohnzimmer
+der Balkon
+der Garten
+der Tisch
+der Stuhl
+das Bett
+der Schrank
+das Sofa
+die Lampe
+das Fenster
+die Tür
+der Kühlschrank
+die Miete
+hell
+dunkel
+schön
+teuer
+billig
+neu
+hier
+dort
+sehr
+aber
+das Brot
+das Brötchen
+die Butter
+der Käse
+die Wurst
+das Ei
+der Apfel
+die Banane
+die Tomate
+die Kartoffel
+das Gemüse
+das Obst
+das Fleisch
+der Fisch
+der Reis
+die Nudeln
+der Kuchen
+der Kaffee
+der Tee
+das Wasser
+die Milch
+der Saft
+das Bier
+der Wein
+das Frühstück
+das Mittagessen
+das Abendessen
+die Rechnung
+der Hunger
+der Durst
+essen
+trinken
+möchten
+mögen
+kochen
+nehmen
+lecker
+gern
+der Supermarkt
+der Laden
+das Geschäft
+der Markt
+kaufen
+kosten
+bezahlen
+brauchen
+suchen
+tragen
+der Euro
+der Preis
+die Kasse
+das Kilo
+die Flasche
+die Packung
+die Kleidung
+die Hose
+das Hemd
+das T-Shirt
+der Pullover
+die Jacke
+der Rock
+das Kleid
+der Schuh
+die Größe
+die Farbe
+rot
+blau
+grün
+gelb
+schwarz
+weiß
+grau
+aufstehen
+frühstücken
+duschen
+arbeiten
+anfangen
+einkaufen
+fernsehen
+anrufen
+schlafen
+gehen
+machen
+die Uhr
+die Stunde
+die Minute
+der Morgen
+der Mittag
+der Nachmittag
+der Abend
+die Nacht
+der Tag
+die Woche
+das Wochenende
+der Montag
+der Dienstag
+der Mittwoch
+der Donnerstag
+der Freitag
+der Samstag
+der Sonntag
+heute
+morgen
+immer
+oft
+manchmal
+nie
+früh
+spät
+halb
+das Viertel
+das Hobby
+die Freizeit
+die Zeit
+spielen
+lesen
+schwimmen
+tanzen
+singen
+reisen
+fotografieren
+laufen
+fahren
+sehen
+treffen
+können
+das Buch
+der Film
+das Kino
+die Musik
+der Sport
+der Fußball
+das Fahrrad
+die Gitarre
+das Konzert
+das Spiel
+das Museum
+der Park
+lieber
+am liebsten
+zusammen
+ein bisschen
+der Bahnhof
+die Haltestelle
+der Bus
+die U-Bahn
+die Straßenbahn
+der Zug
+das Auto
+die Straße
+der Platz
+die Bank
+die Post
+die Apotheke
+das Krankenhaus
+die Schule
+das Hotel
+das Restaurant
+die Kirche
+der Flughafen
+die Ampel
+die Fahrkarte
+links
+rechts
+geradeaus
+weit
+nah
+zu Fuß
+einsteigen
+aussteigen
+umsteigen
+finden
+der Beruf
+die Arbeit
+der Job
+die Firma
+das Büro
+der Kollege
+die Kollegin
+der Chef
+die Chefin
+der Lehrer
+die Lehrerin
+der Arzt
+die Ärztin
+der Ingenieur
+der Verkäufer
+der Student
+die Studentin
+der Computer
+die E-Mail
+der Termin
+die Besprechung
+die Pause
+das Geld
+müssen
+wollen
+schreiben
+verdienen
+studieren
+der Körper
+der Kopf
+das Auge
+das Ohr
+die Nase
+der Mund
+der Zahn
+der Hals
+der Arm
+die Hand
+der Bauch
+der Rücken
+das Bein
+der Fuß
+die Schmerzen
+das Fieber
+die Erkältung
+die Tablette
+das Medikament
+die Praxis
+krank
+gesund
+müde
+wehtun
+bleiben
+helfen
+sollen
+dürfen
+rauchen
+Gute Besserung!
+der Urlaub
+die Reise
+die Ferien
+das Wetter
+die Sonne
+der Regen
+der Schnee
+der Wind
+die Wolke
+der Frühling
+der Sommer
+der Herbst
+der Winter
+das Meer
+der Berg
+der See
+der Koffer
+der Reisepass
+das Ticket
+warm
+kalt
+heiß
+regnen
+scheinen
+buchen
+besuchen
+fliegen
+packen
+gestern
+das Fest
+die Party
+der Geburtstag
+die Hochzeit
+das Geschenk
+die Blume
+die Einladung
+der Gast
+der Monat
+das Datum
+einladen
+feiern
+schenken
+der Januar
+der Februar
+der März
+der April
+der Mai
+der Juni
+der Juli
+der August
+der September
+der Oktober
+der November
+der Dezember
+Herzlichen Glückwunsch!
+Alles Gute!
+Frohe Weihnachten!
