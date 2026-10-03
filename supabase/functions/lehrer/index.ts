@@ -1,20 +1,21 @@
-// Lehrer: the in-app German teacher. Holds the model API key server-side and only
+// Lehrer: the in-app German teacher. Holds the model API keys server-side and only
 // answers Or's signed-in account. Deploy: supabase functions deploy lehrer
-// Secrets: one of GEMINI_API_KEY (Google, free tier), MOONSHOT_API_KEY (Kimi) or ANTHROPIC_API_KEY (Claude).
-// Optional: LEHRER_PROVIDER (gemini | kimi | claude, when more than one key is set), LEHRER_MODEL, ALLOWED_EMAIL.
+// Secrets (any of them; each key set adds a model to the picker in the app):
+//   GEMINI_API_KEY (Google, free tier), MOONSHOT_API_KEY (Kimi), ANTHROPIC_API_KEY (Claude).
+// Optional: ALLOWED_EMAIL, GEMINI_MODEL, KIMI_MODEL, CLAUDE_MODEL.
+// Memory lives in the app, not with the model provider: the app sends its saved teacher notes
+// with every message, and the teacher returns new notes in a <memory> block that the app stores.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 
 const env = (k: string) => Deno.env.get(k) || "";
-// OpenAI-compatible chat endpoints; Claude goes through its own SDK below.
-const OPENAI_COMPAT: Record<string, { url: string; key: string; model: string }> = {
-  gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: "GEMINI_API_KEY", model: "gemini-3.8-flash" },
-  kimi: { url: "https://api.moonshot.ai/v1/chat/completions", key: "MOONSHOT_API_KEY", model: "kimi-k3" },
+type Provider = { label: string; key: string; model: string; url?: string };
+const PROVIDERS: Record<string, Provider> = {
+  gemini: { label: "Gemini 3.8 Flash (free)", key: "GEMINI_API_KEY", model: env("GEMINI_MODEL") || "gemini-3.8-flash", url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" },
+  kimi: { label: "Kimi K3", key: "MOONSHOT_API_KEY", model: env("KIMI_MODEL") || "kimi-k3", url: "https://api.moonshot.ai/v1/chat/completions" },
+  claude: { label: "Claude Sonnet 5.5", key: "ANTHROPIC_API_KEY", model: env("CLAUDE_MODEL") || "claude-sonnet-5-5" },
 };
-const PROVIDER = env("LEHRER_PROVIDER") || (env("GEMINI_API_KEY") ? "gemini" : env("MOONSHOT_API_KEY") ? "kimi" : env("ANTHROPIC_API_KEY") ? "claude" : "");
-const KEY = PROVIDER === "claude" ? env("ANTHROPIC_API_KEY") : OPENAI_COMPAT[PROVIDER] ? env(OPENAI_COMPAT[PROVIDER].key) : "";
-const MODEL = env("LEHRER_MODEL") || (PROVIDER === "claude" ? "claude-sonnet-5-5" : OPENAI_COMPAT[PROVIDER]?.model || "");
+const available = () => Object.keys(PROVIDERS).filter((id) => env(PROVIDERS[id].key));
 const ALLOWED = (env("ALLOWED_EMAIL") || "orgranot91@gmail.com").toLowerCase();
-const client = PROVIDER === "claude" ? new Anthropic({ apiKey: KEY }) : null;
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -22,7 +23,7 @@ const CORS = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-// Stable teacher instructions (cached). The learner profile changes per request and goes after it.
+// Stable teacher instructions. The learner profile and notes change per request and go after it.
 const TEACHER = `You are Or's personal German teacher inside the learning app "Sprechstunde". Or is working from A1 towards B2 and reads English well. Address Or with "du".
 
 How you teach:
@@ -35,6 +36,13 @@ How you teach:
 - For nouns always give the article (der/die/das) and plural. Be encouraging but honest; never pretend a wrong answer was right.
 - Don't invent facts about the app; if Or asks about a feature you don't know, say so.`;
 
+const MEMORY_RULES = `Memory: you have no memory of your own; the app keeps "Teacher notes" for you (listed in the profile, numbered) and gives them to whichever model is teaching. When you learn something worth remembering for future lessons (a recurring mistake, a goal, an interest, what you agreed to practise next, something Or now knows well), end your reply with a block like this, which the app hides from Or:
+<memory>
+add: Or mixes up "seit" and "vor" for time
+remove: 3
+</memory>
+Only add short, lasting facts that aren't already in the notes; use "remove: n" for notes that are wrong or out of date. Leave the block out when there is nothing new.`;
+
 type Turn = { role: "user" | "assistant"; content: string };
 
 Deno.serve(async (req) => {
@@ -46,10 +54,14 @@ Deno.serve(async (req) => {
   let email = "";
   try { email = String(JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).email || "").toLowerCase(); } catch (_) { /* no token */ }
   if (email !== ALLOWED) return json({ error: "This teacher is private." }, 403);
-  if (!KEY) return json({ error: "not_configured" }, 503);
 
-  let body: { messages?: Turn[]; profile?: string };
+  let body: { messages?: Turn[]; profile?: string; provider?: string; list?: boolean };
   try { body = await req.json(); } catch (_) { return json({ error: "Bad request" }, 400); }
+  const ids = available();
+  if (body.list) return json({ providers: ids.map((id) => ({ id, label: PROVIDERS[id].label })) });
+  if (!ids.length) return json({ error: "not_configured" }, 503);
+  const id = body.provider && ids.includes(body.provider) ? body.provider : ids[0];
+
   // keep the conversation bounded so a long chat can't run up the bill
   const messages = (body.messages || [])
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
@@ -57,31 +69,47 @@ Deno.serve(async (req) => {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   while (messages.length && messages[0].role !== "user") messages.shift();
   if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "Bad request" }, 400);
-  const profile = String(body.profile || "").slice(0, 8000);
+  const system = TEACHER + "\n\n" + MEMORY_RULES;
+  const profile = "Learner profile and teacher notes (from the app, updated now):\n" + String(body.profile || "").slice(0, 12000);
 
   try {
-    const reply = client ? await askClaude(client, profile, messages) : await askOpenAICompat(OPENAI_COMPAT[PROVIDER], profile, messages);
-    return json({ reply });
+    const raw = id === "claude" ? await askClaude(system, profile, messages) : await askOpenAICompat(PROVIDERS[id], system + "\n\n" + profile, messages);
+    const { reply, add, remove } = splitMemory(raw);
+    return json({ reply, memory: { add, remove }, provider: id });
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : (e as { status?: number }).status;
     const msg = e instanceof Error ? e.message : String(e);
-    if (status === 429) return json({ error: "Too many messages right now. Try again in a minute." }, 429);
-    if (status === 401 || status === 403) return json({ error: "The API key isn't valid." }, 502);
-    if (status === 402 || /credit|billing|balance|quota|spend/i.test(msg)) return json({ error: "The teacher's API credit is used up for now." }, 502);
+    if (status === 429) return json({ error: "Too many messages right now. Try again in a minute, or pick another model." }, 429);
+    if (status === 401 || status === 403) return json({ error: `The ${PROVIDERS[id].label} API key isn't valid.` }, 502);
+    if (status === 402 || /credit|billing|balance|quota|spend/i.test(msg)) return json({ error: `The ${PROVIDERS[id].label} credit is used up. Pick another model.` }, 502);
     return json({ error: "The teacher couldn't answer: " + msg.slice(0, 200) }, 502);
   }
 });
 
-async function askClaude(c: Anthropic, profile: string, messages: Turn[]): Promise<string> {
-  const res = await c.beta.messages.create({
-    model: MODEL,
+// Pull the <memory> block out of the answer. Lines are "add: ..." or "remove: n".
+function splitMemory(raw: string) {
+  const add: string[] = [], remove: number[] = [];
+  const reply = raw.replace(/<memory>([\s\S]*?)(<\/memory>|$)/gi, (_, block: string) => {
+    for (const line of block.split("\n")) {
+      const a = line.match(/^\s*[-*]?\s*add:\s*(.+)$/i), r = line.match(/^\s*[-*]?\s*remove:\s*(\d+)/i);
+      if (a) add.push(a[1].trim().slice(0, 200));
+      if (r) remove.push(+r[1]);
+    }
+    return "";
+  }).trim();
+  return { reply, add: add.slice(0, 5), remove };
+}
+
+async function askClaude(system: string, profile: string, messages: Turn[]): Promise<string> {
+  const res = await new Anthropic({ apiKey: env("ANTHROPIC_API_KEY") }).beta.messages.create({
+    model: PROVIDERS.claude.model,
     max_tokens: 2000,
     output_config: { effort: "low" },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     system: [
-      { type: "text", text: TEACHER, cache_control: { type: "ephemeral" } },
-      { type: "text", text: "Learner profile (from the app, updated now):\n" + profile },
+      { type: "text", text: system, cache_control: { type: "ephemeral" } },
+      { type: "text", text: profile },
     ],
     messages,
   });
@@ -89,14 +117,14 @@ async function askClaude(c: Anthropic, profile: string, messages: Turn[]): Promi
   return res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
 }
 
-async function askOpenAICompat(p: { url: string }, profile: string, messages: Turn[]): Promise<string> {
-  const r = await fetch(p.url, {
+async function askOpenAICompat(p: Provider, system: string, messages: Turn[]): Promise<string> {
+  const r = await fetch(p.url!, {
     method: "POST",
-    headers: { Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + env(p.key), "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
+      model: p.model,
       max_tokens: 4000, // room for the model's thinking plus a short answer
-      messages: [{ role: "system", content: TEACHER + "\n\nLearner profile (from the app, updated now):\n" + profile }, ...messages],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
   });
   const d = await r.json().catch(() => ({}));
