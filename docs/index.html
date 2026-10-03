@@ -5744,20 +5744,48 @@ async function verifyCode(code) {
   try { setAuth(await sb("/auth/v1/verify", { method: "POST", anon: true, body: JSON.stringify({ type: "email", email: signin.email, token: code.trim() }) })); signin = { sent: false }; render(); pull(); }
   catch (e) { toast("That code didn't work. Use the newest email, or tap its link."); }
 }
-function vSignin() {
-  return `<section class="hero"><h1>Sprechstunde</h1><p class="muted">Your private German course. Sign in to keep your progress on every device.</p></section>
-  <section class="panel today">${signin.sent ? `<p>I sent a sign-in email to <b>${esc(signin.email)}</b>. Tap the link in it, or type the code from it here:</p>
-    <input id="code" class="typein" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" autofocus>
-    <button class="btn primary big" data-act="verifyCode">Sign in</button><button class="linkbtn small" data-act="signinAgain">Send a new email</button>`
-  : `<label class="label" for="email">Email</label><input id="email" class="typein" type="email" autocomplete="email" value="${esc(CFG.email || "")}">
-    <button class="btn primary big" data-act="sendSignin" autofocus>Send me a sign-in email</button>`}</section>`;
+async function passwordSignin(email, pw) {
+  if (CFG.email && email.trim().toLowerCase() !== CFG.email.toLowerCase()) return toast("This app is private.");
+  try { setAuth(await sb("/auth/v1/token?grant_type=password", { method: "POST", anon: true, body: JSON.stringify({ email: email.trim(), password: pw }) })); signin = { sent: false }; render(); pull(); }
+  catch (e) { toast(/confirm/i.test(e.message) ? "Confirm your email first: tap the link in the email from Supabase." : "Wrong email or password."); }
 }
-const syncHTML = () => !CFG ? "" : `<section class="panel"><h2>Account</h2><p class="small">${auth ? `Signed in as <b>${esc(auth.email || "")}</b>. ${syncStatus === "error" ? "Couldn't reach the server; your progress is safe on this device and syncs when it can." : "Progress is saved to your account automatically."}` : "Not signed in."}</p>${auth ? `<button class="btn" data-act="signOut">Sign out</button>` : ""}</section>`;
+async function createPassword(email, pw) {
+  if (CFG.email && email.trim().toLowerCase() !== CFG.email.toLowerCase()) return toast("This app is private.");
+  if ((pw || "").length < 8) return toast("Use at least 8 characters.");
+  try {
+    const d = await sb(`/auth/v1/signup?redirect_to=${encodeURIComponent(location.origin + location.pathname)}`, { method: "POST", anon: true, body: JSON.stringify({ email: email.trim(), password: pw }) });
+    if (d && d.access_token) { setAuth(d); render(); pull(); return; }
+    signin = { mode: "confirm", email: email.trim() }; render();
+  } catch (e) { toast(/registered|exists/i.test(e.message) ? "This email already has an account. Sign in, or use “Email me a link” in Safari and set a password under Fortschritt." : "Couldn't create it: " + e.message); }
+}
+async function setPassword(pw) {
+  if ((pw || "").length < 8) return toast("Use at least 8 characters.");
+  if (!(await freshToken())) return;
+  try { await sb("/auth/v1/user", { method: "PUT", body: JSON.stringify({ password: pw }) }); toast("Password saved. Use it to sign in on the home-screen app."); $("#newpw").value = ""; }
+  catch (e) { toast("Couldn't save it: " + e.message); }
+}
+function vSignin() {
+  const m = signin.mode;
+  const email = `<label class="label" for="email">Email</label><input id="email" class="typein" type="email" autocomplete="username" value="${esc(signin.email || CFG.email || "")}">`;
+  let body;
+  if (signin.sent) body = `<p>I sent a sign-in link to <b>${esc(signin.email)}</b>. Open it on this device. If you're using the home-screen app, sign in with your password instead.</p><button class="linkbtn small" data-act="signinAgain">Back</button>`;
+  else if (m === "confirm") body = `<p>Almost done. Supabase sent an email to <b>${esc(signin.email)}</b>: tap the confirm link in it, then come back here and sign in with your password.</p><button class="btn primary big" data-act="signinAgain">Sign in</button>`;
+  else if (m === "create") body = `${email}<label class="label" for="pw">Choose a password (8+ characters)</label><input id="pw" class="typein" type="password" autocomplete="new-password" autofocus>
+    <button class="btn primary big" data-act="createPassword">Create my account</button><button class="linkbtn small" data-act="signinAgain">I already have one</button>`;
+  else body = `${email}<label class="label" for="pw">Password</label><input id="pw" class="typein" type="password" autocomplete="current-password" autofocus>
+    <button class="btn primary big" data-act="pwSignin">Sign in</button>
+    <div class="row" style="flex-wrap:wrap;justify-content:center"><button class="linkbtn small" data-act="createMode">First time? Create a password</button><button class="linkbtn small" data-act="sendSignin">Email me a sign-in link</button></div>`;
+  return `<section class="hero"><h1>Sprechstunde</h1><p class="muted">Your private German course. Sign in to keep your progress on every device.</p></section><section class="panel today">${body}</section>`;
+}
+const syncHTML = () => !CFG ? "" : `<section class="panel"><h2>Account</h2><p class="small">${auth ? `Signed in as <b>${esc(auth.email || "")}</b>. ${syncStatus === "error" ? "Couldn't reach the server; your progress is safe on this device and syncs when it can." : "Progress is saved to your account automatically."}` : "Not signed in."}</p>${auth ? `<div class="row" style="flex-wrap:wrap"><input id="newpw" class="field" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" style="max-width:260px"><button class="btn" data-act="setPassword">Set password</button></div><p class="small muted">The password is for the iPhone home-screen app, where email links don't open.</p><button class="btn" data-act="signOut">Sign out</button>` : ""}</section>`;
 
 const A = {
   sendSignin: () => sendSignin($("#email").value),
-  verifyCode: () => verifyCode($("#code").value),
-  signinAgain: () => { signin = { sent: false }; render(); },
+  pwSignin: () => passwordSignin($("#email").value, $("#pw").value),
+  createMode: () => { signin = { mode: "create", email: $("#email").value }; render(); },
+  createPassword: () => createPassword($("#email").value, $("#pw").value),
+  setPassword: () => setPassword($("#newpw").value),
+  signinAgain: () => { signin = { email: signin.email }; render(); },
   signOut: () => { setAuth(null); render(); },
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
@@ -5875,7 +5903,7 @@ document.addEventListener("keydown", e => {
     if (b && !(e.key === "Enter" && e.target.matches("button"))) { e.preventDefault(); b.click(); }
     return;
   }
-  if (e.target.matches("input, textarea, select")) { if (e.key === "Enter" && e.target.id === "typein") { e.preventDefault(); A.checkType(); } if (e.key === "Enter" && e.target.id === "email") A.sendSignin(); if (e.key === "Enter" && e.target.id === "code") A.verifyCode(); return; }
+  if (e.target.matches("input, textarea, select")) { if (e.key === "Enter" && e.target.id === "typein") { e.preventDefault(); A.checkType(); } if (e.key === "Enter" && e.target.id === "pw") (signin.mode === "create" ? A.createPassword() : A.pwSignin()); return; }
   if (view === "review" && gsess && gsess.i < gsess.q.length) {
     if (!gsess.picked && ["1", "2", "3"].includes(e.key)) A.gpick({ a: ["der", "die", "das"][+e.key - 1] });
     else if (gsess.picked && (e.key === " " || e.key === "Enter")) { e.preventDefault(); A.gnext(); }
