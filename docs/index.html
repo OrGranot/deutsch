@@ -4653,6 +4653,7 @@ function micError(err) {
 
 // ---------- ui state ----------
 let view = "home", lessonId = 1, lessonTab = "start";
+try { if (["lehrer", "stats"].includes(localStorage.getItem("sprechstunde-view"))) view = localStorage.getItem("sprechstunde-view"); } catch (e) {}
 let sess = null;      // flashcard session
 let gsess = null;     // gender drill
 let sp = null;        // speaking session
@@ -5709,7 +5710,7 @@ function vStats() {
 // The teacher's memory lives here, in the progress that syncs to Supabase, not with the model
 // provider: S.chat (recent conversation) and S.tnotes (notes the teacher asked to keep), so any
 // model picks up where the last one stopped.
-let chat = { busy: false, off: false, draft: "", providers: null };
+let chat = { busy: false, off: false, draft: "", providers: null, err: null };
 const cmsgs = () => (S.chat ||= []);
 const tnotes = () => (S.tnotes ||= []);
 try { const old = JSON.parse(localStorage.getItem("sprechstunde-chat")); if (old && old.length && !S.chat) S.chat = old; localStorage.removeItem("sprechstunde-chat"); } catch (e) {}
@@ -5787,6 +5788,7 @@ function vLehrer() {
   <section class="panel chat">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
     ${chat.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}
+    ${chat.err && !chat.busy ? `<div class="verdict bad"><div class="vicon">!</div><div><b>${esc(chat.err)}</b>${cmsgs().length && cmsgs()[cmsgs().length - 1].role === "user" ? `<div><button class="btn small" data-act="chatRetry">Try again</button></div>` : ""}</div></div>` : ""}
     ${!cmsgs().length && !chat.busy ? `<div class="row" style="flex-wrap:wrap">${STARTERS.map(s => `<button class="btn ghost small starter" data-act="chatStarter" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
     <div class="chatin"><textarea id="lehrerIn" class="field" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
       <div class="row">${micBlocked ? "" : `<button class="icon-btn" data-act="chatMic" aria-label="Speak">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
@@ -5795,18 +5797,23 @@ function vLehrer() {
   ${memoryPanel()}
   <details class="panel"><summary class="small">Use my Claude or ChatGPT subscription instead</summary>${sub}</details>`;
 }
-async function chatSend(text) {
-  text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text || chat.busy) return;
-  cmsgs().push({ role: "user", content: text }); chat.draft = ""; chat.busy = true; saveChat(); render(); scrollChat();
+async function chatSend(text, retry) {
+  if (chat.busy) return;
+  if (!retry) { text = (text ?? $("#lehrerIn")?.value ?? "").trim(); if (!text) return; cmsgs().push({ role: "user", content: text, t: Date.now() }); chat.draft = ""; }
+  chat.err = null; chat.busy = true; saveChat(); render(); scrollChat();
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3);
   try {
     if (!(await freshToken())) throw new Error("Sign in again to talk to your teacher.");
-    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: cmsgs().map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
+    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: cmsgs().map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
     const d = await r.json().catch(() => ({}));
-    if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.providers = []; cmsgs().pop(); chat.draft = text; throw null; }
-    if (!r.ok || !d.reply) throw new Error(d.error || d.message || "The teacher couldn't answer right now.");
+    if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.providers = []; throw new Error("The teacher isn't set up on the server yet."); }
+    if (!r.ok || !d.reply) throw new Error(d.error || d.message || `The teacher couldn't answer (error ${r.status}).`);
     applyMemory(d.memory);
-    cmsgs().push({ role: "assistant", content: d.reply, by: d.provider }); saveChat();
-  } catch (e) { if (e) { toast(e.message); cmsgs().pop(); chat.draft = text; saveChat(); } }
+    cmsgs().push({ role: "assistant", content: d.reply, by: d.provider, t: Date.now() }); saveChat();
+  } catch (e) {
+    // keep Or's message; show what went wrong in the chat with a retry button
+    chat.err = e.name === "AbortError" ? "No answer after 90 seconds. Try again, or pick another model." : (e.message || "Couldn't reach the teacher. Check your connection.");
+  } finally { clearTimeout(timer); }
   chat.busy = false; if (view === "lehrer") { render(); scrollChat(); }
 }
 const scrollChat = () => { const b = $(".chatin"); if (b) b.scrollIntoView({ block: "end" }); };
@@ -5918,6 +5925,7 @@ const A = {
   signinAgain: () => { signin = { email: signin.email }; render(); },
   signOut: () => { setAuth(null); render(); },
   chatSend: () => chatSend(),
+  chatRetry: () => chatSend(null, true),
   chatStarter: d => chatSend(d.text),
   chatSay: d => sayDevice(cmsgs()[+d.i].content.replace(/\*\*?|\([^)]*\)/g, "")),
   chatMic: () => chatMic(),
@@ -5937,7 +5945,7 @@ const A = {
   teachTalk: () => teachTalk(), teachTalkType: () => teachTalk(),
   teachDontKnow: () => teachDontKnow(), teachOverride: () => teachOverride(),
   teachExCheck: () => teachExCheck(),
-  nav: d => { view = d.view; if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
+  nav: d => { view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },

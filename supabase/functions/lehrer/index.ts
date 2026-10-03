@@ -44,6 +44,7 @@ remove: 3
 Only add short, lasting facts that aren't already in the notes; use "remove: n" for notes that are wrong or out of date. Leave the block out when there is nothing new.`;
 
 type Turn = { role: "user" | "assistant"; content: string };
+const TIMEOUT = 60_000; // answer before the app gives up at 90s and the Supabase limit
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -79,6 +80,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : (e as { status?: number }).status;
     const msg = e instanceof Error ? e.message : String(e);
+    console.error(id, status, msg);
+    if (/abort|timed? ?out/i.test(msg) || (e as Error)?.name === "TimeoutError") return json({ error: `${PROVIDERS[id].label} took too long to answer. Try again or pick another model.` }, 504);
     if (status === 429) return json({ error: "Too many messages right now. Try again in a minute, or pick another model." }, 429);
     if (status === 401 || status === 403) return json({ error: `The ${PROVIDERS[id].label} API key isn't valid.` }, 502);
     if (status === 402 || /credit|billing|balance|quota|spend/i.test(msg)) return json({ error: `The ${PROVIDERS[id].label} credit is used up. Pick another model.` }, 502);
@@ -101,7 +104,7 @@ function splitMemory(raw: string) {
 }
 
 async function askClaude(system: string, profile: string, messages: Turn[]): Promise<string> {
-  const res = await new Anthropic({ apiKey: env("ANTHROPIC_API_KEY") }).beta.messages.create({
+  const res = await new Anthropic({ apiKey: env("ANTHROPIC_API_KEY"), timeout: TIMEOUT, maxRetries: 1 }).beta.messages.create({
     model: PROVIDERS.claude.model,
     max_tokens: 2000,
     output_config: { effort: "low" },
@@ -120,10 +123,12 @@ async function askClaude(system: string, profile: string, messages: Turn[]): Pro
 async function askOpenAICompat(p: Provider, system: string, messages: Turn[]): Promise<string> {
   const r = await fetch(p.url!, {
     method: "POST",
+    signal: AbortSignal.timeout(TIMEOUT),
     headers: { Authorization: "Bearer " + env(p.key), "Content-Type": "application/json" },
     body: JSON.stringify({
       model: p.model,
-      max_tokens: 4000, // room for the model's thinking plus a short answer
+      max_tokens: 8000, // room for the model's thinking plus a short answer
+      ...(p === PROVIDERS.gemini ? { reasoning_effort: "low" } : {}),
       messages: [{ role: "system", content: system }, ...messages],
     }),
   });
@@ -133,7 +138,11 @@ async function askOpenAICompat(p: Provider, system: string, messages: Turn[]): P
     err.status = r.status;
     throw err;
   }
-  const text = String(d?.choices?.[0]?.message?.content || "").trim();
-  if (!text) throw new Error("empty answer");
+  const c = d?.choices?.[0]?.message?.content;
+  const text = (Array.isArray(c) ? c.map((x: { text?: string }) => x?.text || "").join("") : String(c || "")).trim();
+  if (!text) {
+    console.error("empty answer", JSON.stringify(d).slice(0, 1000));
+    throw new Error(`${p.label} sent an empty answer (finish: ${d?.choices?.[0]?.finish_reason || "unknown"})`);
+  }
   return text;
 }
