@@ -302,3 +302,13 @@ a.btn { text-decoration: none; color: inherit; }
 .conv span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .teach .hintline { color: var(--muted); font-size: 1.2rem; }
 .teach .model .sentence { font-size: 1.15rem; }
+.plan.path { list-style: none; padding: 0; gap: 0; counter-reset: step; }
+.plan.path li { counter-increment: step; position: relative; padding: 4px 0 12px 40px; min-height: 28px; }
+.plan.path li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; display: grid; place-items: center; font-size: .85rem; }
+.plan.path li:not(:last-child)::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 0; width: 2px; background: var(--line); }
+.lpath { display: flex; flex-wrap: wrap; gap: 4px; }
+.lpath span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.lpath span.on { background: var(--ok); color: #fff; border-color: var(--ok); }
+.lpath span.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.convo-log { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
+.convo-log .teacher { max-width: none; }

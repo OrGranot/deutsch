@@ -315,6 +315,16 @@ a.btn { text-decoration: none; color: inherit; }
 .conv span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .teach .hintline { color: var(--muted); font-size: 1.2rem; }
 .teach .model .sentence { font-size: 1.15rem; }
+.plan.path { list-style: none; padding: 0; gap: 0; counter-reset: step; }
+.plan.path li { counter-increment: step; position: relative; padding: 4px 0 12px 40px; min-height: 28px; }
+.plan.path li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; display: grid; place-items: center; font-size: .85rem; }
+.plan.path li:not(:last-child)::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 0; width: 2px; background: var(--line); }
+.lpath { display: flex; flex-wrap: wrap; gap: 4px; }
+.lpath span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.lpath span.on { background: var(--ok); color: #fff; border-color: var(--ok); }
+.lpath span.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.convo-log { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
+.convo-log .teacher { max-width: none; }
 </style>
 <script src="config.js"></script>
 </head>
@@ -5097,11 +5107,11 @@ function vHome() {
     items = ["A short warm-up", `12 questions from all of ${c.check}`, `80% and you move on${nextLevelOf(c.check) ? " to " + nextLevelOf(c.check) : ""}`];
     note = "If it's not 80% yet, I'll give you focused practice first.";
   } else {
-    const { plan } = planPreview();
+    const { plan, tasks } = planPreview();
     label = `${doneToday ? "Today's lesson is done. Another one?" : "Today's lesson"} · ${plan.remedial ? `Strengthen ${plan.remedial}` : `${L.level} · Lektion ${L.id}: ${esc(L.title)}`}`;
     btn = doneToday ? "Start another lesson" : "Start";
-    items = plan.remedial ? [`The ${plan.remedial} words you're least sure of`, "Grammar from the lessons where the check went wrong", "Two speaking questions", `${c.remedial.left} practice lesson${c.remedial.left > 1 ? "s" : ""}, then the check again`]
-      : [plan.warm && `Warm-up: ${plan.warm} words from before`, plan.fresh && `${plan.fresh} new words`, plan.grammar && `Grammar: ${plan.grammar}`, "Speaking: repeat after me, answer questions"].filter(Boolean);
+    items = pathSteps(tasks);
+    if (plan.remedial) items.push(`${c.remedial.left} practice lesson${c.remedial.left > 1 ? "s" : ""}, then the ${plan.remedial} check again`);
     note = (plan.pace ? plan.pace + " " : "") + `About 15 minutes. I check every answer${micBlocked ? " (here by typing; the microphone is blocked on this page)" : ""}.`;
   }
   const nDone = LESSONS.filter(x => S.lessons[x.id]?.done).length;
@@ -5109,14 +5119,39 @@ function vHome() {
   <section class="hero"><h1>${greet}</h1><p class="muted">${st ? `Day ${st} in a row.` : "One lesson a day. I'll tell you what to do."}</p></section>
   <section class="panel today">
     <span class="label">${label}</span>
-    <ol class="plan">${items.map(x => `<li>${x}</li>`).join("")}</ol>
+    ${c.placed && !c.check ? teacherSays(doneToday ? "Good work today. If you want more, I've planned another lesson." : "Here's today's plan. Tap Start and I'll take you through it, one step at a time.") : ""}
+    <ol class="plan ${c.placed && !c.check ? "path" : ""}">${items.map(x => `<li>${x}</li>`).join("")}</ol>
     <button class="btn primary big" data-act="teachStart" autofocus>${ICON.mic} ${btn}</button>
     <p class="small muted">${note}</p>
   </section>
   <section class="goal panel"><div class="ring" style="--p:${Math.min(100, Math.round(100 * (d.xp || 0) / DAILY_GOAL))}"><b class="num">${d.xp || 0}</b><span class="small muted">/ ${DAILY_GOAL} XP</span></div>
-    <div class="stack" style="gap:4px;min-width:0"><h3>${(d.xp || 0) >= DAILY_GOAL ? "Daily goal reached. Super!" : "Today's goal"}</h3>
+    <div class="stack" style="gap:4px;min-width:0">${c.placed ? levelPath(L) : ""}<h3>${(d.xp || 0) >= DAILY_GOAL ? "Daily goal reached. Super!" : "Today's goal"}</h3>
     <p class="small"><b>${st}</b> day streak · <b>${S.xp || 0}</b> XP · <b>${nDone}/${LESSONS.length}</b> lessons</p>
-    ${c.placed && !c.check && !c.remedial ? `<div class="partdots small">${[["Words", rd.words], ["Grammar", rd.gram], ["Exercises", rd.ex], ["Speaking", rd.talk]].map(([l, ok]) => `<span class="${ok ? "on" : ""}">${ok ? "✓" : "○"} ${l}</span>`).join(" ")}</div>` : ""}</div></section>`;
+    ${c.placed && !c.check && !c.remedial ? `<div class="partdots small">${[["Words", rd.words], ["Grammar", rd.gram], ["Exercises", rd.ex], ...(chainsOf(L.id).length ? [["Sentences", rd.build]] : []), ["Speaking", rd.talk]].map(([l, ok]) => `<span class="${ok ? "on" : ""}">${ok ? "✓" : "○"} ${l}</span>`).join(" ")}</div>` : ""}</div></section>`;
+}
+// today's steps for the home screen, read from the planned lesson
+const PART = { "Aufwärmen": "Warm-up", "Neue Wörter": "New words", "Grammatik": "Grammar", "Bauen": "Build sentences", "Sprechen": "Speaking", "Gespräch": "Conversation with Lehrer", "Wiederholung": "Review" };
+function pathSteps(tasks) {
+  const parts = [];
+  let cur = null;
+  for (const t of tasks) {
+    if (t.type === "intro") { cur = parts.find(p => p.part === t.part); if (!cur) parts.push(cur = { part: t.part, title: t.title, n: {} }); }
+    else if (cur && t.type !== "summary") cur.n[t.type] = (cur.n[t.type] || 0) + 1;
+  }
+  return parts.map(({ part, title, n }) => {
+    const name = `<b>${PART[part] || esc(part)}</b>`;
+    if (part === "Aufwärmen") return `${name}: ${[n.recall && `${n.recall} words`, n.build && `${n.build} sentence${n.build > 1 ? "s" : ""}`].filter(Boolean).join(" and ")} from before`;
+    if (part === "Neue Wörter") return `${name}: ${n.learn || 0} to learn and recall`;
+    if (part === "Grammatik") return `${name}: ${esc(title)}`;
+    if (part === "Bauen") return `${name}: ${n.build} from English, out loud`;
+    if (part === "Sprechen") return `${name}: repeat after me, answer questions`;
+    if (part === "Gespräch") return `${name}: a short talk about today's topic`;
+    return `${name}: ${esc(title)}`;
+  });
+}
+function levelPath(L) {
+  const ls = levelLessons(L.level);
+  return `<div class="lpath" aria-label="${L.level} lessons">${ls.map(x => `<span class="${S.lessons[x.id]?.done || S.lessons[x.id]?.skipped ? "on" : x.id === L.id ? "cur" : ""}" title="Lektion ${x.id}: ${esc(x.title)}">${S.lessons[x.id]?.done || S.lessons[x.id]?.skipped ? "✓" : x.id}</span>`).join("")}</div>`;
 }
 function planPreview() { const keep = JSON.stringify(S); const r = planSession(); S = JSON.parse(keep); return r; }
 
@@ -5679,6 +5714,10 @@ function planSession() {
   tasks.push({ type: "intro", part: "Sprechen", title: micBlocked ? "Listening and answering" : "Speaking", text: micBlocked ? "The microphone isn't available here, so you'll write what you hear and type your answers. I check everything." : "Repeat after me. I'll show you exactly which words came through. Then answer two questions out loud." });
   shadows.forEach(t => tasks.push({ type: "shadow", text: t }));
   talks.forEach(({ q, i }) => tasks.push({ type: "talk", item: q, key: L.id + ":" + i }));
+  if (CFG && auth && !chat.off) {
+    tasks.push({ type: "intro", part: "Gespräch", title: "Talk with me", text: `Now a short conversation about today's topic, ${CONVO_TURNS} answers from you. ${micBlocked ? "Type" : "Speak"} your answers in German; I'll correct one thing at a time and keep the talk going.` });
+    tasks.push({ type: "convo" });
+  }
   tasks.push({ type: "summary" });
   return { tasks, plan, mode: "lesson" };
 }
@@ -5713,7 +5752,7 @@ function vTeach() {
   const total = T.tasks.length, pct = Math.round(100 * T.i / Math.max(1, total - 1));
   const part = [...T.tasks.slice(0, T.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
   const head = `<div class="progress"><button class="btn ghost" data-act="teachEnd" aria-label="End lesson">${ICON.back}</button><span class="bar"><i style="width:${pct}%"></i></span><span class="small muted">${esc(part)}</span></div>`;
-  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked })[t.type](t)}</section>`;
+  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, convo: tConvo, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked })[t.type](t)}</section>`;
 }
 const teacherSays = html => `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${html}</div></div>`;
 const micOrType = (act, ph) => micBlocked
@@ -5989,6 +6028,78 @@ function tBuild(t) {
     <div class="models"><span class="label">Right</span><div class="model">${playBtn(r.target)}<span class="sentence">${r.al ? markWords(r.target, r.al) : esc(r.target)}</span></div></div>
     ${fix}<div class="row" style="justify-content:center">${done ? nextBtn() : `<button class="btn ghost" data-act="teachSkip">Skip</button>`}${!r.gave && !r.typed && !micBlocked && !again ? `<button class="btn ghost" data-act="teachBuildOverride">I said it right</button>` : ""}</div>`;
 }
+// ----- Gespräch: a short spoken conversation with Lehrer at the end of the lesson -----
+// Runs on the same Supabase function as the Lehrer tab. The lesson brief goes in as the first
+// (hidden) message, so no server change is needed. Skipped quietly when the teacher isn't set up.
+const CONVO_TURNS = 4;
+async function askLehrer(msgs) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3);
+  try {
+    if (!(await freshToken())) throw new Error("Sign in again to talk to your teacher.");
+    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: msgs.map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.providers = []; const e = new Error("off"); e.off = true; throw e; }
+    if (!r.ok || !d.reply) throw new Error(d.error || d.message || `The teacher couldn't answer (error ${r.status}).`);
+    applyMemory(d.memory); save();
+    return { content: d.reply, by: d.provider };
+  } catch (e) { throw e.name === "AbortError" ? new Error("No answer after 90 seconds.") : e; } finally { clearTimeout(timer); }
+}
+function convoBrief() {
+  const L = LESSON[T.lesson], c = course(), ch = T.tasks.find(x => x.type === "build" && !x.review);
+  const gi = ch ? ch.gi : Math.max(0, (c.gi[L.id] || 1) - 1);
+  const built = T.tasks.filter(x => x.type === "build" && !x.review && !x.retest).map(x => bstep(x).de).slice(-3);
+  return `[Lesson conversation. This message comes from the app, not from Or. Your replies appear in Or's daily lesson and the German is read aloud.]
+Today's lesson: ${L.level} Lektion ${L.id} "${L.title}" (${L.en || ""}). Grammar: ${L.grammar[gi]?.t || L.grammar[0].t}.
+New words today: ${T.learned.length ? T.learned.map(id => WORDS[id].de).join(", ") : "none (review lesson)"}.${built.length ? `\nSentences Or built today: ${built.join(" / ")}` : ""}
+Hold a short spoken conversation with Or about this lesson's topic, using today's words and grammar, at Or's level (see the profile).
+- One short question per message: at most two simple German sentences at A1/A2, a bit more from B1.
+- Put any English help on its own last line, in round brackets. No lists, no headings.
+- When Or answers: react to what Or said in one German sentence. If there is a mistake, give Or's sentence corrected with the change in **bold**, and the rule in a few English words in the bracket line. One correction at most. Then ask the next question, building on Or's answer and nudging Or to say a little more each time.
+- After Or's ${CONVO_TURNS}th answer, don't ask anything new: give a warm one-line wrap-up in German, put the one thing to practise in the bracket line, and end with [ENDE].
+Start now: greet Or briefly and ask the first question.`;
+}
+const convoSpeak = s => sayDevice(s.replace(/\[ENDE\]/g, "").replace(/\([^)]*\)/g, "").replace(/\*\*?/g, "").trim());
+const convoShow = s => mdLite(s.replace(/\[ENDE\]/g, "").trim());
+async function convoNext(t) {
+  const cv = t.cv; cv.busy = true; cv.err = null; render();
+  try {
+    const m = await askLehrer([{ role: "user", content: convoBrief() }, ...cv.msgs]);
+    if (task() !== t) return;
+    cv.msgs.push({ role: "assistant", ...m, t: Date.now() });
+    if (/\[ENDE\]/.test(m.content) || cv.turns >= CONVO_TURNS + 1) convoFinish(t);
+    convoSpeak(m.content);
+  } catch (e) {
+    if (task() !== t) return;
+    if (e.off) { cv.busy = false; toast("Lehrer isn't switched on yet, so the conversation is skipped."); return nextTask(); }
+    cv.err = e.message || "Couldn't reach the teacher.";
+  }
+  cv.busy = false; render(); $(".convo-log")?.lastElementChild?.scrollIntoView({ block: "nearest" });
+}
+function convoFinish(t) {
+  const cv = t.cv; if (cv.done) return; cv.done = true;
+  // keep it in the Lehrer tab's conversations, without the app's brief
+  (S.chats ||= []).push({ id: Date.now(), t: Date.now(), msgs: [{ role: "user", content: `(Gespräch in Lektion ${T.lesson})`, t: Date.now() }, ...cv.msgs].map(m => ({ ...m, content: m.content.replace(/\[ENDE\]/g, "").trim() })) });
+  S.chats = S.chats.slice(-20); save();
+}
+async function teachConvo() {
+  const t = task(), cv = t.cv; if (!cv || cv.busy || cv.done) return;
+  try {
+    const a = await getAnswer(); if (!a || task() !== t) return;
+    cv.msgs.push({ role: "user", content: a.alts[0], t: Date.now() }); cv.turns++; addXP(5); save();
+    convoNext(t);
+  } catch (err) { micError(err); render(); }
+}
+function tConvo(t) {
+  const cv = t.cv ||= { msgs: [], turns: 0 };
+  if (!cv.msgs.length && !cv.busy && !cv.err) setTimeout(() => task() === t && !cv.busy && !cv.msgs.length && convoNext(t), 0);
+  const log = cv.msgs.map(m => m.role === "assistant"
+    ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${convoShow(m.content)}<div><button class="icon-btn" data-act="convoSay" data-i="${cv.msgs.indexOf(m)}" aria-label="Read aloud">${ICON.play}</button></div></div></div>`
+    : `<div class="me"><div class="bubble">${esc(m.content)}</div></div>`).join("");
+  return `<span class="label">Gespräch mit Lehrer · ${Math.min(cv.turns, CONVO_TURNS)} of ${CONVO_TURNS}</span>
+    <div class="convo-log">${log}${cv.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}</div>
+    ${cv.err ? verdictHTML({ v: "bad", title: cv.err, detail: `<button class="btn small" data-act="convoRetry">Try again</button>` }) : ""}
+    ${cv.done ? nextBtn() : cv.busy || cv.err ? "" : `${micOrType("teachConvo", "Antworte auf Deutsch …")}<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`}`;
+}
 function teachExCheck() {
   const t = task(), e = LESSON[t.lesson].ex[t.i], box = $(`.ex[data-i="${t.i}"]`); let ok = false, answered = true;
   if (e.type === "mc") { const p = box.querySelector('[aria-pressed="true"]'); if (!p) answered = false; else { box.querySelectorAll(".opt").forEach((o, k) => { o.classList.toggle("right", k === e.a); if (o === p && k !== e.a) o.classList.add("wrong"); }); ok = +p.dataset.k === e.a; } }
@@ -6231,6 +6342,7 @@ function learnerProfile() {
   const bm = recent.filter(m => m.b && bstepOf(m.b)).map(m => `"${bstepOf(m.b).en}" → ${bstepOf(m.b).de}${m.got ? ` (Or said: ${m.got})` : ""}`);
   if (bm.length) out.push(`Recent sentence-building mistakes (English prompt → correct German): ${[...new Set(bm)].slice(-8).join("; ")}.`);
   const today_ = S.days[today()]; out.push(`Today: ${today_ ? `${today_.lessons || 0} lesson(s), ${today_.xp || 0} XP` : "no practice yet"}.`);
+  out.push(`How the app works: it leads Or through one planned daily lesson (warm-up of due words and sentences, new words, a grammar point with checked exercises, building sentences from English out loud, repeat-after-me, questions, and a short conversation with you). Or doesn't choose what to practise; the app and you do. ${today_?.lessons ? "Today's lesson is done, so in this chat give extra practice on Or's weak points from this profile." : "Today's lesson isn't done yet: if Or asks what to do, send them to start it (\"Start today's lesson\" on the Lernen tab) before extra practice."}`);
   out.push(tnotes().length ? `Teacher notes (kept by the app from earlier conversations, any model):\n${tnotes().map((n, i) => `${i + 1}. ${n.text} (${new Date(n.t).toISOString().slice(0, 10)})`).join("\n")}` : "Teacher notes: none yet.");
   return out.join("\n");
 }
@@ -6266,11 +6378,17 @@ function historyPanel() {
   return `<details class="panel history" ${chat.histOpen ? "open" : ""}><summary class="small" data-act="histToggle">Conversations (${old.length})</summary>
     <ul class="convs">${old.map(c => `<li class="${c.id === S.chatId ? "on" : ""}"><button class="conv" data-act="chatOpen" data-id="${c.id}" ${chat.busy ? "disabled" : ""}><span>${esc(chatTitle(c))}</span><span class="small muted">${day(c.t || c.id)} · ${c.msgs.length} messages</span></button><button class="linkbtn small" data-act="chatDel" data-id="${c.id}" aria-label="Delete this conversation">Delete</button></li>`).join("")}</ul></details>`;
 }
+// the teacher sends Or to today's lesson first; free chat is for extra questions
+function lessonNudge() {
+  const c = course();
+  if ((day().lessons || 0) > 0) return "";
+  return `<section class="panel today">${teacherSays(c.placed ? "Today's lesson first: words, grammar, sentences, speaking and a talk with me. I've planned it all. Come back here any time with questions." : "First let's find your level with a short check. Then I plan every lesson for you.")}<button class="btn primary" data-act="teachGo">${ICON.mic} Start today's lesson</button></section>`;
+}
 function vLehrer() {
   setTimeout(() => { const l = $("#chatlog"); if (l && !l.dataset.seen) { l.dataset.seen = 1; l.scrollTop = l.scrollHeight; } }, 0);
   if (CFG && auth && chat.providers === null) loadProviders();
   const sub = `<div class="row" style="flex-wrap:wrap;justify-content:center"><a class="btn" href="${esc(chatUrl("claude"))}" target="_blank" rel="noopener">Open in Claude</a><a class="btn" href="${esc(chatUrl("chatgpt"))}" target="_blank" rel="noopener">Open in ChatGPT</a><button class="btn ghost" data-act="copyTeacher">Copy prompt</button></div>`;
-  if (!lehrerReady()) return `<section class="hero"><h1>Lehrer</h1><p class="muted">Your German teacher, with your progress.</p></section>
+  if (!lehrerReady()) return `<section class="hero"><h1>Lehrer</h1><p class="muted">Your German teacher, with your progress.</p></section>${lessonNudge()}
     <section class="panel today">${teacherSays(chat.off ? "The in-app teacher isn't switched on yet. Until then, open me in Claude or ChatGPT: your level, your tricky words, recent mistakes and my notes go along." : "Open me in Claude or ChatGPT. Your level, your tricky words, recent mistakes and my notes go along, so I know where to start.")}${sub}<p class="small muted">Uses your own Claude or ChatGPT subscription.</p></section>${memoryPanel()}`;
   const provs = Array.isArray(chat.providers) ? chat.providers : [];
   const cur = provs.some(p => p.id === S.settings.lehrerModel) ? S.settings.lehrerModel : provs[0]?.id;
@@ -6279,7 +6397,7 @@ function vLehrer() {
     ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${mdLite(m.content)}<div class="row between"><button class="icon-btn" data-act="chatSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button>${m.by ? `<span class="small muted">${esc(modelLabel(m.by))}</span>` : ""}</div></div></div>`
     : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
   return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p>${picker}</section>
-  ${historyPanel()}
+  ${lessonNudge()}${historyPanel()}
   <section class="panel chat">
     <div class="chatlog" id="chatlog">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
@@ -6481,6 +6599,10 @@ const A = {
   teachBuildHint: () => { T.hint++; render(); $("#typein")?.focus(); },
   teachBuildShow: () => teachBuildShow(), teachBuildOverride: () => teachBuildOverride(),
   teachSkip: () => nextTask(),
+  teachGo: () => { if (dict) stopDictation(); view = "home"; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} startTeach(); },
+  teachConvo: () => teachConvo(), teachConvoType: () => teachConvo(),
+  convoRetry: () => { const t = task(); if (!t?.cv) return; t.cv.err = null; convoNext(t); },
+  convoSay: d => { const m = task()?.cv?.msgs[+d.i]; if (m) convoSpeak(m.content); },
   nav: d => { if (dict) stopDictation(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
