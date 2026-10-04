@@ -30,5 +30,15 @@ for f in AUDIO_DIR.glob("p*.json"):
 if not (web / "config.js").exists(): (web / "config.js").write_text('window.SYNC_CONFIG = { url: "", key: "", email: "" };\n')
 (web / "manifest.webmanifest").write_text(json.dumps({"name": "Sprechstunde", "short_name": "Deutsch", "start_url": "./", "display": "standalone", "background_color": "#f4f1ea", "theme_color": "#e8a317", "icons": [{"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}]}))
 (web / ".nojekyll").write_text("")
+# service worker: only shows Lehrer's daily reminder (no caching, so updates arrive as before)
+(web / "sw.js").write_text("""self.addEventListener("push", e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Lehrer", { body: d.body || "Zeit für Deutsch!", icon: "icon-512.png", badge: "icon-512.png", tag: "erinnerung", data: { url: d.url || "./" } }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(ws => ws.length ? ws[0].focus() : clients.openWindow(e.notification.data.url)));
+});
+""")
 (web / "index.html").write_text('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="Deutsch">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n<link rel="manifest" href="manifest.webmanifest">\n' + head + '\n<script src="config.js"></script>\n</head>\n<body>\n' + body + "\n</body>\n</html>\n")
 print("web build ready")

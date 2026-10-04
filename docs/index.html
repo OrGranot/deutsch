@@ -5650,7 +5650,7 @@ try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch (e) { S = fr
 S = Object.assign(fresh(), S);
 // scores saved before lesson steps existed still count as a passed exercise step
 for (const [id, sc] of Object.entries(S.ex || {})) { const L = LESSONS.find(x => x.id === +id); if (L && sc >= Math.ceil(L.ex.length * 0.7)) { const st = (S.lessons[id] ||= {}); st.parts ||= {}; st.parts.ex ||= Date.now(); } }
-const save = () => { S.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} queueSync(); };
+const save = () => { S.updatedAt = Date.now(); try { S.where = whereNow(); } catch (e) {} try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} queueSync(); };
 const day = () => (S.days[today()] ||= { rev: 0, ok: 0, nw: 0, spoke: 0 });
 const started = () => LESSONS.filter(L => S.lessons[L.id]?.started).map(L => L.id);
 const card = id => S.cards[id] || { s: "new", step: 0, due: 0, ivl: 0, ease: 2.5, reps: 0, fails: 0, lapses: 0, cons: 0 };
@@ -6003,7 +6003,79 @@ function nextMilestone() {
   return `Next milestone: ${lv} done, ${left} lesson${left === 1 ? "" : "s"} and the level check to go.`;
 }
 const weeklyHome = () => "";
-const remindHome = () => "";
+// ---------- daily reminder from Lehrer (push notification, hosted build only) ----------
+// iPhone: works in the app opened from the Home Screen (iOS 16.4+). The server side is the
+// "erinnerung" Supabase function; it sends one note a day after the chosen time, only when
+// today's lesson isn't done. The subscription belongs to this device, so it's kept locally.
+const RKEY = "sprechstunde-remind";
+let remind = {}; try { remind = JSON.parse(localStorage.getItem(RKEY)) || {}; } catch (e) {}
+const saveRemind = () => { try { localStorage.setItem(RKEY, JSON.stringify(remind)); } catch (e) {} };
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const standalone = () => !!(navigator.standalone || matchMedia("(display-mode: standalone)").matches);
+const pushOk = () => !!(CFG && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"));
+function whereNow() { const c = course(), L = curLesson(); return { placed: !!c.placed, level: L.level, lesson: L.id, title: L.title, check: c.check || null, remedial: c.remedial ? c.remedial.lv : null }; }
+async function remindFn(body) {
+  if (!(await freshToken())) throw new Error("Sign in first.");
+  const r = await fetch(CFG.url + "/functions/v1/erinnerung", { method: "POST", headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 404 || d.error === "not_configured") throw new Error("The reminder isn't set up on the server yet.");
+  if (!r.ok) throw new Error(d.error || d.message || "Error " + r.status);
+  return d;
+}
+const keyBytes = k => Uint8Array.from(atob(k.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((k.length + 3) % 4)), c => c.charCodeAt(0));
+async function remindOn(at) {
+  remind.busy = true; remind.err = null; render();
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") throw new Error(isIOS ? "Notifications are off for this app. Turn them on in Settings › Notifications › Deutsch, then try again." : "Notifications are blocked for this page. Allow them in the browser's site settings, then try again.");
+    const reg = await navigator.serviceWorker.register("sw.js"); await navigator.serviceWorker.ready;
+    const { key } = await remindFn({ action: "key" });
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && remind.key && remind.key !== key) { await sub.unsubscribe(); sub = null; }
+    sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+    await remindFn({ action: "subscribe", sub: sub.toJSON(), at, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, url: location.origin + location.pathname });
+    remind = { on: true, at, endpoint: sub.endpoint, key, synced: today() }; saveRemind();
+    toast(`Done. I'll remind you at ${at} if today's lesson isn't done yet.`);
+  } catch (e) { remind.err = e.message || String(e); }
+  remind.busy = false; render();
+}
+async function remindOff() {
+  try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await remindFn({ action: "unsubscribe", endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe(); } } catch (e) {}
+  remind = { off: true }; saveRemind(); toast("Reminders are off on this device."); render();
+}
+async function remindTest() {
+  try { await remindFn({ action: "test", endpoint: remind.endpoint }); toast("Sent. It should arrive in a few seconds."); } catch (e) { toast(e.message); }
+}
+// once a day, make sure the server still has this device's current subscription
+async function remindRefresh() {
+  if (!remind.on || remind.synced === today() || !pushOk() || !auth) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(); let sub = reg && await reg.pushManager.getSubscription();
+    if (!sub) { if (Notification.permission !== "granted") { remind = {}; saveRemind(); return; } sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(remind.key) }); }
+    await remindFn({ action: "subscribe", sub: sub.toJSON(), at: remind.at, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, url: location.origin + location.pathname });
+    remind.endpoint = sub.endpoint; remind.synced = today(); saveRemind();
+  } catch (e) {}
+}
+const timeIn = (v = "19:00") => `<input id="remindAt" class="field" type="time" value="${esc(v)}" step="900" aria-label="Reminder time" style="width:auto">`;
+// the one-time offer on the home screen
+function remindHome() {
+  if (!CFG || !auth || remind.on || remind.off || !course().placed) return "";
+  if (isIOS && !standalone()) return `<section class="panel today">${teacherSays("I can remind you every day on your phone. That works in the app on your Home Screen: tap Share, then “Add to Home Screen”, and open Deutsch from there.")}<button class="linkbtn small" data-act="remindNo">Not now</button></section>`;
+  if (!pushOk()) return "";
+  return `<section class="panel today">${teacherSays("Shall I remind you every day? Pick a time. If today's lesson isn't done by then, I'll send you a short note.")}
+    <div class="row" style="flex-wrap:wrap">${timeIn(remind.at)}<button class="btn primary" data-act="remindOn" ${remind.busy ? "disabled" : ""}>${remind.busy ? "One moment…" : "Remind me"}</button><button class="linkbtn small" data-act="remindNo">Not now</button></div>
+    ${remind.err ? `<p class="note small">${esc(remind.err)}</p>` : ""}</section>`;
+}
+// settings row in Fortschritt
+function remindSettings() {
+  if (!CFG || !auth) return "";
+  let body;
+  if (remind.on) body = `<p class="small">Every day at <b>${esc(remind.at)}</b> on this device, when today's lesson isn't done yet.</p><div class="row" style="flex-wrap:wrap">${timeIn(remind.at)}<button class="btn" data-act="remindOn" ${remind.busy ? "disabled" : ""}>Change time</button><button class="btn" data-act="remindTest">Send a test</button><button class="btn ghost" data-act="remindOff">Turn off</button></div>`;
+  else if (isIOS && !standalone()) body = `<p class="small muted">Open the app from your Home Screen to turn on reminders (Share › Add to Home Screen).</p>`;
+  else if (!pushOk()) body = `<p class="small muted">This browser can't receive reminders.</p>`;
+  else body = `<p class="small">A short note from me if today's lesson isn't done by this time.</p><div class="row" style="flex-wrap:wrap">${timeIn(remind.at)}<button class="btn" data-act="remindOn" ${remind.busy ? "disabled" : ""}>Remind me</button></div>`;
+  return `<section class="panel"><h2>Daily reminder</h2>${body}${remind.err ? `<p class="note small">${esc(remind.err)}</p>` : ""}</section>`;
+}
 // today's steps for the home screen, read from the planned lesson
 const PART = { "Aufwärmen": "Warm-up", "Neue Wörter": "New words", "Grammatik": "Grammar", "Bauen": "Build sentences", "Sprechen": "Speaking", "Gespräch": "Conversation with Lehrer", "Wiederholung": "Review" };
 function pathSteps(tasks) {
@@ -7161,6 +7233,7 @@ function vStats() {
     <div class="row"><button class="btn" data-act="say" data-text="Hallo! Schön, dass du Deutsch lernst. Wie geht es dir?">${ICON.play} Test voice</button></div>
     ${voices.length ? "" : `<p class="note">No German voice found on this device. On Windows, add German under Settings › Time & language › Speech; on a phone, install German text-to-speech in the system settings.</p>`}
   </section>
+  ${remindSettings()}
   ${syncHTML()}
   <section class="panel"><h2>Backup</h2><p class="muted small">Progress is stored in this browser only. Copy the code below to move it to another browser or device, and paste a code to restore.</p>
     <textarea id="backup" class="field" spellcheck="false" aria-label="Backup code"></textarea>
@@ -7444,6 +7517,10 @@ function vSignin() {
 const syncHTML = () => !CFG ? "" : `<section class="panel"><h2>Account</h2><p class="small">${auth ? `Signed in as <b>${esc(auth.email || "")}</b>. ${syncStatus === "error" ? "Couldn't reach the server; your progress is safe on this device and syncs when it can." : "Progress is saved to your account automatically."}` : "Not signed in."}</p>${auth ? `<div class="row" style="flex-wrap:wrap"><input id="newpw" class="field" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" style="max-width:260px"><button class="btn" data-act="setPassword">Set password</button></div><p class="small muted">The password is for the iPhone home-screen app, where email links don't open.</p><button class="btn" data-act="signOut">Sign out</button>` : ""}</section>`;
 
 const A = {
+  remindOn: () => { const v = ($("#remindAt") || {}).value || "19:00"; remindOn(v); },
+  remindOff: () => remindOff(),
+  remindTest: () => remindTest(),
+  remindNo: () => { remind = { off: true }; saveRemind(); render(); },
   sendSignin: () => sendSignin($("#email").value),
   pwSignin: () => passwordSignin($("#email").value, $("#pw").value),
   createMode: () => { signin = { mode: "create", email: $("#email").value }; render(); },
@@ -7607,7 +7684,7 @@ document.addEventListener("keydown", e => {
   }
 });
 
-if (CFG) { readAuthHash(); pull(); window.addEventListener("focus", () => pull()); }
+if (CFG) { readAuthHash(); pull().then(remindRefresh); window.addEventListener("focus", () => pull()); }
 render();
 })();
 </script>

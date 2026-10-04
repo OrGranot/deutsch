@@ -9,6 +9,8 @@ Or's private German course, A1 to B2: a guided daily lesson with spaced repetiti
 - The app leads: the home screen shows today's lesson as numbered steps (warm-up, new words, grammar, build sentences, speaking, conversation with Lehrer) and one Start button; Or never picks exercises. When the Lehrer function is set up and Or is signed in, each lesson ends with a short spoken conversation with Lehrer about the day's topic (`convoBrief()` in `src/app.js` sends the lesson brief as the first message, so the server needs no change). The Lehrer tab sends Or to today's lesson first.
 - Progress syncs to a private Supabase table when `docs/config.js` has the project URL and anon key.
 
+- Motivation: the daily goal is one lesson (or 10 minutes of practice, counted while a practice screen is in use); each day the goal is met adds to the streak (`goalMet()`, `streak()`). Home shows the streak, the last 7 days and "Your way to B2" (a bar per level); passing a level check is a milestone.
+- Daily reminder: a push notification from Lehrer at a time Or picks, sent only when today's lesson isn't done. On the iPhone it works in the app opened from the Home Screen (iOS 16.4+). Server side: run `supabase/reminders.sql` once in the SQL editor (tables plus a 15-minute cron job), then create the function `erinnerung` from `supabase/functions/erinnerung/index.ts` (no secrets; it makes its own push keys). The app saves `S.where` (today's lesson) with the progress so the note can say where Or left off. `docs/sw.js` only shows the notification.
 
 ## Lehrer (AI teacher)
 
