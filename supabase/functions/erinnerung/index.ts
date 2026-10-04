@@ -76,9 +76,9 @@ async function sendPush(sub: Sub, msg: unknown, keys: Keys) {
 }
 
 // ---------- what Lehrer says ----------
-// progress.data is the app's state: days[date] = { lessons, sec, rev, spoke }, where = today's lesson, weekly = last check-in
+// progress.data is the app's state: days[date] = { lessons, sec, rev, spoke }, where = today's lesson (weekly: the check-in is due)
 type Day = { lessons?: number; sec?: number; rev?: number; spoke?: number };
-type Data = { days?: Record<string, Day>; where?: { level?: string; lesson?: number; title?: string; check?: string; remedial?: string; placed?: boolean }; weekly?: { at?: number } };
+type Data = { days?: Record<string, Day>; where?: { level?: string; lesson?: number; title?: string; check?: string; remedial?: string; placed?: boolean; weekly?: boolean } };
 const GOAL_SINCE = "2026-10-04";
 const met = (d: Data, k: string) => { const x = d.days?.[k]; return !!x && ((x.lessons || 0) > 0 || (x.sec || 0) >= 600 || (k < GOAL_SINCE && !!(x.rev || x.spoke))); };
 const shift = (k: string, n: number) => { const t = new Date(k + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -90,7 +90,7 @@ export function message(d: Data, k: string) {
     : w.remedial ? `Heute üben wir noch einmal ${w.remedial}, dann kommt der Test.`
     : `Weiter mit Lektion ${w.lesson}: ${w.title}${/[.?!]$/.test(w.title || "") ? "" : "."} Etwa 10 Minuten.`;
   const open = n >= 2 ? `Dein ${n}-Tage-Streak 🔥 wartet auf dich.` : n === 1 ? "Gestern hast du geübt. Mach heute weiter!" : ["Hallo Or! Zeit für Deutsch.", "Na, Or? Eine Lektion heute?", "Guten Abend, Or! Hast du 10 Minuten?"][dayNo % 3];
-  const weekly = d.weekly?.at && Date.now() - d.weekly.at >= 7 * 864e5 ? " Danach: unser Wochenrückblick." : "";
+  const weekly = w.weekly ? " Heute auch: unser Wochenrückblick." : "";
   return { title: n >= 2 ? `Lehrer · 🔥 ${n}` : "Lehrer", body: `${open} ${what}${weekly}` };
 }
 // local date "YYYY-MM-DD" and minutes since midnight in a time zone

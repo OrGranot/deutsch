@@ -405,7 +405,6 @@ function nextMilestone() {
   const left = levelLessons(lv).filter(x => !lessonDone(x.id)).length;
   return `Next milestone: ${lv} done, ${left} lesson${left === 1 ? "" : "s"} and the level check to go.`;
 }
-const weeklyHome = () => "";
 // ---------- daily reminder from Lehrer (push notification, hosted build only) ----------
 // iPhone: works in the app opened from the Home Screen (iOS 16.4+). The server side is the
 // "erinnerung" Supabase function; it sends one note a day after the chosen time, only when
@@ -416,7 +415,7 @@ const saveRemind = () => { try { localStorage.setItem(RKEY, JSON.stringify(remin
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const standalone = () => !!(navigator.standalone || matchMedia("(display-mode: standalone)").matches);
 const pushOk = () => !!(CFG && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"));
-function whereNow() { const c = course(), L = curLesson(); return { placed: !!c.placed, level: L.level, lesson: L.id, title: L.title, check: c.check || null, remedial: c.remedial ? c.remedial.lv : null }; }
+function whereNow() { const c = course(), L = curLesson(); return { placed: !!c.placed, level: L.level, lesson: L.id, title: L.title, check: c.check || null, remedial: c.remedial ? c.remedial.lv : null, weekly: weeklyDue() }; }
 async function remindFn(body) {
   if (!(await freshToken())) throw new Error("Sign in first.");
   const r = await fetch(CFG.url + "/functions/v1/erinnerung", { method: "POST", headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -479,8 +478,93 @@ function remindSettings() {
   else body = `<p class="small">A short note from me if today's lesson isn't done by this time.</p><div class="row" style="flex-wrap:wrap">${timeIn(remind.at)}<button class="btn" data-act="remindOn" ${remind.busy ? "disabled" : ""}>Remind me</button></div>`;
   return `<section class="panel"><h2>Daily reminder</h2>${body}${remind.err ? `<p class="note small">${esc(remind.err)}</p>` : ""}</section>`;
 }
+// ---------- weekly check-in with Lehrer ----------
+// Once a week (7 days after the last one, or after the first week of practice) the lesson starts
+// with a look back: the week's numbers, Lehrer's review and one goal for the coming week.
+// The goal shows on the home screen and goes into the learner profile.
+const wk = () => (S.weekly ||= {});
+function weeklyDue() {
+  if (!course().placed) return false;
+  if (wk().at) return Date.now() - wk().at >= 7 * DAY - 3 * 3600e3;
+  const first = Object.keys(S.days).filter(k => goalMet(k) || S.days[k].rev).sort()[0];
+  return !!first && first <= dkey(daysAgo(7));
+}
+function weekStats() {
+  const ks = [...Array(7)].map((_, i) => dkey(daysAgo(i + 1))), from = daysAgo(7).setHours(0, 0, 0, 0), c = course();
+  const sum = f => ks.reduce((n, k) => n + (S.days[k]?.[f] || 0), 0);
+  const miss = {}; (S.mlog || []).filter(m => m.t >= from && m.w && WORDS[m.w]).forEach(m => { miss[m.w] = (miss[m.w] || 0) + 1; });
+  return {
+    days: ks.filter(goalMet).length, lessons: sum("lessons"), min: Math.round(sum("sec") / 60), rev: sum("rev"), ok: sum("ok"), nw: sum("nw"), spoke: sum("spoke"),
+    finished: LESSONS.filter(L => S.lessons[L.id]?.done >= from && !S.lessons[L.id]?.skipped).map(L => `${L.level} Lektion ${L.id} (${L.title})`),
+    passed: Object.entries(c.passed || {}).filter(([, t]) => t >= from).map(([lv]) => lv),
+    missed: Object.entries(miss).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id, n]) => `${WORDS[id].de} (${n}×)`),
+    exMiss: (S.mlog || []).filter(m => m.t >= from && m.ex).length, buildMiss: (S.mlog || []).filter(m => m.t >= from && m.b).length,
+    streak: streak(), where: `${curLesson().level} Lektion ${curLesson().id} (${curLesson().title})`
+  };
+}
+function weeklyBrief(st) {
+  const prev = wk().goal;
+  return `[Weekly check-in. This message comes from the app, not from Or. Your reply appears at the start of Or's daily lesson.]
+Or's last 7 days: practised on ${st.days} of 7 days (daily goal: one lesson or 10 minutes), ${st.lessons} lesson(s), about ${st.min} minutes, ${st.nw} new words, ${st.rev} word reviews${st.rev ? ` (${Math.round(100 * st.ok / st.rev)}% right)` : ""}, spoke ${st.spoke} times. Streak now: ${st.streak} days.
+Finished this week: ${st.finished.length ? st.finished.join(", ") : "no lesson finished"}.${st.passed.length ? ` Passed the ${st.passed.join(", ")} level check.` : ""} Now at: ${st.where}.
+Words missed most this week: ${st.missed.length ? st.missed.join(", ") : "none"}. Exercise mistakes: ${st.exMiss}. Sentence-building mistakes: ${st.buildMiss}.
+${prev ? `Last week's goal was: "${prev}". Say in one line whether Or reached it.` : "This is the first weekly check-in."}
+Write the check-in, mostly in English, with short German where it suits Or's level:
+- First line: one honest sentence about the week.
+- A line starting "Besser:" with one or two concrete things that improved, with evidence from the numbers or the profile.
+- A line starting "Noch üben:" with one or two concrete weak points (name the words or the grammar).
+- Last line exactly in this form: "Ziel: <one concrete goal for the next 7 days that the app can show, e.g. practise on 5 days, or get these 3 articles right: ...>"
+Under 110 words. No headings, no other lists.`;
+}
+// used when Lehrer isn't available: the same shape, from the numbers alone
+function weeklyLocal(st) {
+  const hard = Object.keys(S.cards).filter(id => WORDS[id] && struggling(card(id))).slice(0, 3).map(id => WORDS[id].de);
+  const good = st.passed.length ? `you passed ${st.passed.join(" and ")}` : st.finished.length ? `you finished ${st.finished.length} lesson${st.finished.length > 1 ? "s" : ""}` : st.days ? `you practised on ${st.days} day${st.days > 1 ? "s" : ""}` : "you're back";
+  const goal = st.days < 5 ? "An 5 Tagen üben (one lesson a day)" : hard.length ? `Diese Wörter sicher: ${hard.join(", ")}` : `Lektion ${curLesson().id} abschließen`;
+  return `${st.days >= 5 ? "Sehr gut, a strong week!" : st.days >= 3 ? "Gut, a solid week." : "A quiet week, and that's fine. Let's pick it up."}\nBesser: ${good}.\nNoch üben: ${st.missed.length ? st.missed.slice(0, 3).join(", ") : hard.length ? hard.join(", ") : "keep the daily rhythm"}.\nZiel: ${goal}`;
+}
+function weeklySave(t, text, by) {
+  const m = text.match(/^\s*\**\s*Ziel\s*:?\s*\**\s*:?\s*(.+)$/im), goal = m ? m[1].replace(/\*+/g, "").trim() : "";
+  const prev = wk();
+  S.weekly = { at: Date.now(), goal, text, by, prevGoal: prev.goal || null };
+  (S.weeks ||= []).push({ at: S.weekly.at, goal, days: t.st.days, lessons: t.st.lessons }); S.weeks = S.weeks.slice(-12);
+  if (by !== "app") { (S.chats ||= []).push({ id: Date.now(), t: Date.now(), msgs: [{ role: "user", content: "(Wochenrückblick)", t: Date.now() }, { role: "assistant", content: text, by, t: Date.now() }] }); S.chats = S.chats.slice(-20); }
+  save();
+}
+async function weeklyRun(t) {
+  const w = t.w; w.busy = true; render();
+  try {
+    if (!(CFG && auth && !chat.off)) throw Object.assign(new Error("off"), { off: true });
+    const m = await askLehrer([{ role: "user", content: weeklyBrief(t.st) }]);
+    if (task() !== t) return;
+    w.text = m.content.trim(); weeklySave(t, w.text, m.by);
+    sayDevice(w.text.split("\n")[0].replace(/\*\*?/g, ""));
+  } catch (e) {
+    if (task() !== t) return;
+    w.text = weeklyLocal(t.st); w.note = e.off ? "" : "Lehrer couldn't be reached, so this one comes from your numbers."; weeklySave(t, w.text, "app");
+  }
+  w.busy = false; render();
+}
+function tWeekly(t) {
+  t.st ||= weekStats();
+  const w = t.w ||= {}, st = t.st;
+  if (!w.text && !w.busy) setTimeout(() => task() === t && !w.busy && !w.text && weeklyRun(t), 0);
+  const prev = wk().prevGoal;
+  const body = w.text ? mdLite(w.text).replace(/(^|<br>)\s*(Besser:|Noch üben:|Ziel:)/g, "$1<b>$2</b>") : "…";
+  return `<span class="label">Wochenrückblick</span><h2>Your week</h2>
+    <div class="sumgrid"><div><b class="num">${st.days}/7</b><span class="small muted">days</span></div><div><b class="num">${st.lessons}</b><span class="small muted">lessons</span></div><div><b class="num">${st.min}</b><span class="small muted">minutes</span></div></div>
+    ${teacherSays(`<div class="${w.text ? "" : "muted"}">${body}</div>`)}
+    ${w.note ? `<p class="small muted">${esc(w.note)}</p>` : ""}
+    ${w.text && wk().goal ? `<div class="weekgoal"><span class="label">Your goal this week</span><b>${esc(wk().goal)}</b></div>` : ""}
+    ${w.text ? nextBtn("On to today's lesson") : ""}`;
+}
+function weeklyHome() {
+  const g = S.weekly;
+  if (!g?.goal || Date.now() - g.at > 8 * DAY) return "";
+  return `<section class="weekgoal panel"><span class="label">Goal this week · from Lehrer</span><b>${esc(g.goal)}</b></section>`;
+}
 // today's steps for the home screen, read from the planned lesson
-const PART = { "Aufwärmen": "Warm-up", "Neue Wörter": "New words", "Grammatik": "Grammar", "Bauen": "Build sentences", "Sprechen": "Speaking", "Gespräch": "Conversation with Lehrer", "Wiederholung": "Review" };
+const PART = { "Aufwärmen": "Warm-up", "Neue Wörter": "New words", "Grammatik": "Grammar", "Bauen": "Build sentences", "Sprechen": "Speaking", "Gespräch": "Conversation with Lehrer", "Wiederholung": "Review", "Wochenrückblick": "Weekly check-in with Lehrer" };
 function pathSteps(tasks) {
   const parts = [];
   let cur = null;
@@ -496,6 +580,7 @@ function pathSteps(tasks) {
     if (part === "Bauen") return `${name}: ${n.build} from English, out loud`;
     if (part === "Sprechen") return `${name}: repeat after me, answer questions`;
     if (part === "Gespräch") return `${name}: a short talk about today's topic`;
+    if (part === "Wochenrückblick") return `${name}: how your week went, and one goal for the next`;
     return `${name}: ${esc(title)}`;
   });
 }
@@ -1033,6 +1118,7 @@ function planSession() {
   const fresh = L.words.filter(id => !S.cards[id]).slice(0, pc.fresh);
   const gi = c.gi[L.id] || 0;
   const plan = { lesson: L.id, warm: due.length + old.length, fresh: fresh.length, pace: pc.label, grammar: gi < L.grammar.length ? L.grammar[gi].t : null };
+  if (weeklyDue()) tasks.push({ type: "intro", part: "Wochenrückblick", title: "Your week", text: "Before today's lesson, a look back at your last 7 days: what got better, what still needs work, and one goal for the coming week." }, { type: "weekly" });
   if (due.length + old.length + sents.length) {
     const n = due.length + old.length, ns = sents.length;
     tasks.push({ type: "intro", part: "Aufwärmen", title: "Warm-up", text: `${pc.label ? pc.label + " " : ""}${n ? `${n} words from before. Say each one from memory${[...due, ...old].some(id => WORDS[id].art) ? ", nouns with der, die or das" : ""}` : ""}${n && ns ? `, then ${ns === 1 ? "a sentence" : ns + " sentences"} to build` : ns ? `${ns === 1 ? "A sentence" : ns + " sentences"} from before to build` : ""}. Pulling it out of memory is what makes it stick.` });
@@ -1102,7 +1188,7 @@ function vTeach() {
   const total = T.tasks.length, pct = Math.round(100 * T.i / Math.max(1, total - 1));
   const part = [...T.tasks.slice(0, T.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
   const head = `<div class="progress"><button class="btn ghost" data-act="teachEnd" aria-label="End lesson">${ICON.back}</button><span class="bar"><i style="width:${pct}%"></i></span><span class="small muted">${esc(part)}</span></div>`;
-  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, convo: tConvo, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked })[t.type](t)}</section>`;
+  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, convo: tConvo, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked, weekly: tWeekly })[t.type](t)}</section>`;
 }
 const teacherSays = html => `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${html}</div></div>`;
 const micOrType = (act, ph) => micBlocked
@@ -1699,6 +1785,7 @@ function learnerProfile() {
   if (bm.length) out.push(`Recent sentence-building mistakes (English prompt → correct German): ${[...new Set(bm)].slice(-8).join("; ")}.`);
   const today_ = S.days[today()]; out.push(`Today: ${today_ ? `${today_.lessons || 0} lesson(s), ${Math.floor((today_.sec || 0) / 60)} min practice, ${today_.xp || 0} XP` : "no practice yet"}. Daily goal (one lesson or ${GOAL_MIN} minutes) ${goalMet(today()) ? "met" : "not met yet"}; best streak ${bestStreak()} days. Course progress: ${journey().pct}% of the way to B2.`);
   out.push(`How the app works: it leads Or through one planned daily lesson (warm-up of due words and sentences, new words, a grammar point with checked exercises, building sentences from English out loud, repeat-after-me, questions, and a short conversation with you). Or doesn't choose what to practise; the app and you do. ${today_?.lessons ? "Today's lesson is done, so in this chat give extra practice on Or's weak points from this profile." : "Today's lesson isn't done yet: if Or asks what to do, send them to start it (\"Start today's lesson\" on the Lernen tab) before extra practice."}`);
+  if (S.weekly?.goal) out.push(`Goal for this week (set in the weekly check-in on ${new Date(S.weekly.at).toISOString().slice(0, 10)}): ${S.weekly.goal}.`);
   out.push(tnotes().length ? `Teacher notes (kept by the app from earlier conversations, any model):\n${tnotes().map((n, i) => `${i + 1}. ${n.text} (${new Date(n.t).toISOString().slice(0, 10)})`).join("\n")}` : "Teacher notes: none yet.");
   return out.join("\n");
 }
