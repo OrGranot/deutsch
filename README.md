@@ -5,6 +5,7 @@ Or's private German course, A1 to B2: a guided daily lesson with spaced repetiti
 - Live app: GitHub Pages serves `docs/`.
 - Edit content in `src/` (`data.js` is A1, `src/levels/*.js` are A2–B2, rules in `src/levels/BRIEF.md`), check with `node validate.js src/levels/*.js`, then `python3 build.py`.
 - Audio: `node collect.js > texts.json`, then `gen_audio.py` with the Coqui Thorsten VITS voice (CC0); packs go to `docs/audio/`.
+- Bauen (build-it-yourself sentences, in the style of Language Transfer): `src/build/a1.js` holds one chain of growing English → German prompts per grammar topic (`BUILD[lesson][grammar index]`). The daily lesson runs one chain after the grammar; the last sentences of each chain, plus any missed, return in the warm-up on the spaced-repetition schedule (`S.sents`). Chain sentences are recorded like the rest (`collect.js` picks them up; `gen_audio.py` reuses clips already in the packs, so only new sentences are synthesised).
 - Progress syncs to a private Supabase table when `docs/config.js` has the project URL and anon key.
 
 

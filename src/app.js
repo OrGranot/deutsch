@@ -47,7 +47,7 @@ const plText = w => !w.art ? "" : w.plOnly ? "plural only" : (w.pl === "—" || 
 
 // ---------- state ----------
 const KEY = "sprechstunde-a1-v1";
-const fresh = () => ({ cards: {}, lessons: { 1: { started: Date.now() } }, ex: {}, gender: {}, shadow: {}, sounds: {}, days: {}, settings: { newPerDay: 12, rate: 0.9, voice: "" } });
+const fresh = () => ({ cards: {}, sents: {}, lessons: { 1: { started: Date.now() } }, ex: {}, gender: {}, shadow: {}, sounds: {}, days: {}, settings: { newPerDay: 12, rate: 0.9, voice: "" } });
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch (e) { S = fresh(); }
 S = Object.assign(fresh(), S);
@@ -741,7 +741,8 @@ function lessonReady(L) {
   const gram = (c.gi[L.id] || 0) >= L.grammar.length;
   const ex = L.ex.every((_, i) => c.exOk[L.id + ":" + i]);
   const talk = L.speak.every((_, i) => c.talk[L.id + ":" + i]);
-  return { words, gram, ex, talk, all: words && gram && ex && talk };
+  const build = chainsOf(L.id).every(g => (c.built || {})[L.id + ":" + g]);
+  return { words, gram, ex, talk, build, all: words && gram && ex && talk && build };
 }
 function exChunk(L, gi) { const n = L.ex.length, g = L.grammar.length; return L.ex.map((_, i) => i).slice(Math.floor(gi * n / g), Math.floor((gi + 1) * n / g)); }
 // ----- adaptive teacher: placement, level checks, pace, review of earlier levels -----
@@ -871,6 +872,8 @@ function remedialPlan(rm) {
   const exs = shuffle(ls.flatMap(id => LESSON[id].ex.map((e, i) => ({ lesson: id, i })))).slice(0, 8);
   tasks.push({ type: "intro", part: "Grammatik", title: "Grammar you missed", text: "Exercises from the lessons where the check went wrong. Wrong answers come back a moment later." });
   exs.forEach(x => tasks.push({ type: "ex", ...x }));
+  const bs = shuffle(ls.flatMap(id => chainsOf(id).flatMap(gi => BUILD[id][gi].steps.map((_, si) => ({ lesson: id, gi, si }))))).slice(0, 4);
+  if (bs.length) { tasks.push({ type: "intro", part: "Bauen", title: "Build sentences", text: "Sentences from those lessons. I give you English, you build the German." }); bs.forEach(x => tasks.push({ type: "build", ...x, review: true })); }
   const talk = shuffle(ls.flatMap(id => LESSON[id].speak.map((q, i) => ({ q, key: id + ":" + i })))).slice(0, 2);
   tasks.push({ type: "intro", part: "Sprechen", title: "Speaking", text: "Two questions from those lessons." });
   talk.forEach(x => tasks.push({ type: "talk", item: x.q, key: x.key }));
@@ -884,14 +887,15 @@ function planSession() {
   const pc = pace();
   if (!S.lessons[L.id]?.started) S.lessons[L.id] = { ...(S.lessons[L.id] || {}), started: Date.now() };
   const now = Date.now();
-  const due = dueWords(pc.review), old = oldWords(4);
+  const due = dueWords(pc.review), old = oldWords(4), sents = warmSents(2);
   const fresh = L.words.filter(id => !S.cards[id]).slice(0, pc.fresh);
   const gi = c.gi[L.id] || 0;
   const plan = { lesson: L.id, warm: due.length + old.length, fresh: fresh.length, pace: pc.label, grammar: gi < L.grammar.length ? L.grammar[gi].t : null };
-  if (due.length + old.length) {
-    const n = due.length + old.length;
-    tasks.push({ type: "intro", part: "Aufwärmen", title: "Warm-up", text: `${pc.label ? pc.label + " " : ""}${n} words from before. Say each one from memory${[...due, ...old].some(id => WORDS[id].art) ? ", nouns with der, die or das" : ""}. Pulling a word out of memory is what makes it stick.` });
+  if (due.length + old.length + sents.length) {
+    const n = due.length + old.length, ns = sents.length;
+    tasks.push({ type: "intro", part: "Aufwärmen", title: "Warm-up", text: `${pc.label ? pc.label + " " : ""}${n ? `${n} words from before. Say each one from memory${[...due, ...old].some(id => WORDS[id].art) ? ", nouns with der, die or das" : ""}` : ""}${n && ns ? `, then ${ns === 1 ? "a sentence" : ns + " sentences"} to build` : ns ? `${ns === 1 ? "A sentence" : ns + " sentences"} from before to build` : ""}. Pulling it out of memory is what makes it stick.` });
     shuffle([...due.map(id => ({ id })), ...old.map(id => ({ id, old: true }))]).forEach(x => tasks.push({ type: "recall", id: x.id, graded: true, old: x.old }));
+    sents.forEach(k => { const [lesson, gi, si] = k.split(":").map(Number); tasks.push({ type: "build", lesson, gi, si, review: true }); });
   }
   if (fresh.length) {
     tasks.push({ type: "intro", part: "Neue Wörter", title: "New words", text: `${fresh.length} new words from Lektion ${L.id}. Listen to each one and repeat it. I'll check your pronunciation, then ask you for them again.` });
@@ -908,6 +912,8 @@ function planSession() {
     const open = L.ex.map((_, i) => i).filter(i => !c.exOk[L.id + ":" + i]);
     if (open.length) { tasks.push({ type: "intro", part: "Grammatik", title: "Fix the last ones", text: "These exercises didn't work out last time. Let's try them again." }); open.forEach(i => tasks.push({ type: "ex", lesson: L.id, i })); }
   }
+  const bg = pickChain(L, gi);
+  if (bg >= 0) tasks.push(...chainTasks(L.id, bg));
   if (fresh.length >= 4) { tasks.push({ type: "intro", part: "Neue Wörter", title: "One more time", text: "The new words again, a few minutes later. Spacing is what moves them into long-term memory." }); shuffle(fresh).slice(0, 5).forEach(id => tasks.push({ type: "recall", id, graded: false })); }
   // speaking: shadow 2 sentences (weakest first), answer 2 questions (unanswered first)
   const sc = t => S.shadow[t] ? S.shadow[t].best : -1;
@@ -924,7 +930,7 @@ function startTeach() {
   if (!c.placed) return startPlacement();
   if (c.check) return startLevelCheck(c.check);
   const { tasks, mode } = planSession(); save();
-  T = { mode, tasks, i: 0, r: null, tries: 0, ok: 0, n: 0, mistakes: [], learned: [], xp0: S.xp || 0, lesson: curLesson().id };
+  T = { mode, tasks, i: 0, r: null, tries: 0, hint: 0, ok: 0, n: 0, mistakes: [], learned: [], bmiss: [], xp0: S.xp || 0, lesson: curLesson().id };
   view = "teach"; render(); window.scrollTo(0, 0); onTask();
 }
 const task = () => T && T.tasks[T.i];
@@ -939,9 +945,10 @@ function nextTask() {
   const cur = task();
   if (cur && cur.type === "learn" && !S.cards[cur.id]) addCard(cur.id);
   if (cur && cur.type === "grammar") { const c = course(); c.gi[cur.lesson] = Math.max(c.gi[cur.lesson] || 0, cur.gi + 1); save(); }
+  if (cur && cur.type === "build" && cur.last && !cur.retest) finishChain(cur.lesson, cur.gi);
   T.i++;
   if (task() && (task().type === "pcheck" || task().type === "lcheck")) evalCheck(task());
-  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.retry = null; render(); window.scrollTo(0, 0); onTask(); }
+  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.hint = 0; T.retry = null; render(); window.scrollTo(0, 0); onTask(); }
 function requeue(t, gap = 3) { if ((t.rn || 0) >= 2) return; T.tasks.splice(Math.min(T.tasks.length - 1, T.i + 1 + gap), 0, { ...t, retest: true, graded: false, rn: (t.rn || 0) + 1 }); }
 
 function vTeach() {
@@ -949,7 +956,7 @@ function vTeach() {
   const total = T.tasks.length, pct = Math.round(100 * T.i / Math.max(1, total - 1));
   const part = [...T.tasks.slice(0, T.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
   const head = `<div class="progress"><button class="btn ghost" data-act="teachEnd" aria-label="End lesson">${ICON.back}</button><span class="bar"><i style="width:${pct}%"></i></span><span class="small muted">${esc(part)}</span></div>`;
-  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked })[t.type](t)}</section>`;
+  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked })[t.type](t)}</section>`;
 }
 const teacherSays = html => `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${html}</div></div>`;
 const micOrType = (act, ph) => micBlocked
@@ -958,7 +965,7 @@ const micOrType = (act, ph) => micBlocked
 const verdictHTML = r => `<div class="verdict ${r.v}"><div class="vicon">${r.v === "ok" ? "✓" : r.v === "close" ? "~" : "✗"}</div><div><b>${esc(r.title)}</b>${r.detail ? `<div>${r.detail}</div>` : ""}</div></div>`;
 const nextBtn = (label = "Weiter") => `<button class="btn primary big" data-act="teachNext" autofocus>${label}</button>`;
 
-function tIntro(t) { return `<span class="label">${esc(t.part)}</span><h2>${esc(t.title)}</h2>${teacherSays(esc(t.text))}${nextBtn("Los geht's")}`; }
+function tIntro(t) { return `<span class="label">${esc(t.part)}</span><h2>${esc(t.title)}</h2>${teacherSays(t.html || esc(t.text))}${nextBtn("Los geht's")}`; }
 function tRecall(t) {
   const w = WORDS[t.id], r = T.r;
   const ans = `<div class="answer">${deHTML(w)}</div><div class="row" style="justify-content:center">${playBtn(w.de)}<button class="icon-btn" data-act="saySlow" data-text="${esc(w.de)}" aria-label="Listen slowly">${ICON.slow}</button></div>`;
@@ -1001,7 +1008,7 @@ function tTalk(t) {
 function tSummary() {
   const L = LESSON[T.lesson], rd = lessonReady(L), xp = (S.xp || 0) - T.xp0;
   const rate = T.n ? Math.round(100 * T.ok / T.n) : 100;
-  const steps = [["words", "All words learned", rd.words], ["gram", "All grammar covered", rd.gram], ["ex", "All exercises right", rd.ex], ["talk", "All questions answered", rd.talk]];
+  const steps = [["words", "All words learned", rd.words], ["gram", "All grammar covered", rd.gram], ["ex", "All exercises right", rd.ex], ["talk", "All questions answered", rd.talk], ...(chainsOf(L.id).length ? [["build", "All sentences built", rd.build]] : [])];
   return `<span class="label">Stunde beendet</span><div class="celebrate-title sumtitle">${rate >= 85 ? "Ausgezeichnet!" : rate >= 65 ? "Gut gemacht!" : "Geschafft!"}</div>
     <div class="sumgrid"><div><b class="num">${rate}%</b><span class="small muted">right first time</span></div><div><b class="num">${T.learned.length}</b><span class="small muted">new words</span></div><div><b class="num">+${xp}</b><span class="small muted">XP</span></div></div>
     ${T.mistakes.length ? `<div class="models"><span class="label">Practise these, they'll come back soon</span>${[...new Set(T.mistakes)].slice(0, 8).map(id => `<div class="model">${playBtn(WORDS[id].de)}<span>${deHTML(WORDS[id])} <span class="muted small">${esc(WORDS[id].en)}</span></span></div>`).join("")}</div>` : ""}
@@ -1099,6 +1106,131 @@ async function teachTalk() {
     if (ok) { course().talk[t.key] = Date.now(); addXP(5); chime(false); }
     save(); render();
   } catch (err) { micError(err); render(); }
+}
+// ----- Bauen: build sentences from English, the way Language Transfer teaches -----
+// One insight, then English prompts that grow step by step; the learner builds the German
+// out loud. Wrong answers get the reason, the right sentence, a repeat, and come back later.
+// The last sentences of each chain go into a sentence deck that returns in the warm-up.
+const chainOf = (l, g) => (typeof BUILD !== "undefined" && BUILD[l] && BUILD[l][g]) || null;
+const chainsOf = l => (typeof BUILD !== "undefined" && BUILD[l] || []).map((ch, g) => ch ? g : -1).filter(g => g >= 0);
+const bstepOf = k => { const [l, g, s] = String(k).split(":"); return chainOf(l, g)?.steps[s] || null; };
+const bstep = t => chainOf(t.lesson, t.gi).steps[t.si];
+const bkey = t => `${t.lesson}:${t.gi}:${t.si}`;
+function pickChain(L, gi) {
+  const built = course().built || {}, open = chainsOf(L.id).filter(g => !built[L.id + ":" + g]);
+  if (gi < L.grammar.length && open.includes(gi)) return gi;
+  const done = open.filter(g => g < gi);
+  return done.length ? done[0] : -1;
+}
+function chainTasks(l, g) {
+  const ch = chainOf(l, g), n = ch.steps.length;
+  return [{ type: "intro", part: "Bauen", title: "Build it yourself", html: `${ch.tip}<br><br>I give you English, you build the German out loud. Take your time to think it through: working it out is the practice.` },
+    ...ch.steps.map((_, si) => ({ type: "build", lesson: l, gi: g, si, last: si === n - 1 }))];
+}
+function finishChain(l, g) {
+  const c = course(), ch = chainOf(l, g), now = Date.now(); (c.built ||= {})[l + ":" + g] = now;
+  const n = ch.steps.length, missed = T.bmiss.filter(k => k.startsWith(l + ":" + g + ":"));
+  // the two longest (last) sentences plus anything missed come back from tomorrow
+  for (const k of new Set([`${l}:${g}:${n - 2}`, `${l}:${g}:${n - 1}`, ...missed])) if (!S.sents[k]) {
+    const miss = missed.includes(k);
+    S.sents[k] = { ...card(""), s: "rev", ivl: 1, due: now + 20 * 3600e3, reps: 1, fails: miss ? 1 : 0, cons: miss ? 0 : 1, last: now };
+  }
+  save();
+}
+function gradeSent(k, g) {
+  const now = Date.now(), c0 = S.sents[k] || { ...card(""), s: "rev", ivl: g ? 3 : 0, due: now, reps: 0 };
+  S.sents[k] = schedule(c0, g, now); save();
+}
+function warmSents(cap) {
+  const now = Date.now(), ks = Object.keys(S.sents || {}).filter(k => bstepOf(k) && S.sents[k].due <= now + 5 * MIN).sort((a, b) => S.sents[a].due - S.sents[b].due).slice(0, cap);
+  if (ks.length < cap) {
+    // lessons finished or skipped before their chains existed: bring their sentences in too
+    const old = LESSONS.filter(L => (S.lessons[L.id]?.done || S.lessons[L.id]?.skipped) && L.id !== curLesson().id)
+      .flatMap(L => chainsOf(L.id).flatMap(g => chainOf(L.id, g).steps.map((_, s) => `${L.id}:${g}:${s}`))).filter(k => !S.sents[k]);
+    ks.push(...shuffle(old).slice(0, cap - ks.length));
+  }
+  return ks;
+}
+const btoks = s => norm(String(s).replace(/€/g, " Euro ")).split(" ").filter(Boolean);
+const sameTok = (a, b) => a === b || loose(a) === loose(b);
+function judgeBuild(st, alts) {
+  let best = null;
+  for (const h of alts) {
+    const hw = btoks(h);
+    for (const tg of [st.de, ...(st.alt || [])]) {
+      const tw = btoks(tg);
+      if (hw.length === tw.length && hw.every((x, i) => sameTok(x, tw[i]))) return { v: "ok", heard: h, target: tg, umlaut: hw.some((x, i) => x !== tw[i]) };
+      const al = align(tw, hw);
+      if (!best || al.score > best.al.score) best = { al, heard: h, target: tg, hw, tw };
+    }
+  }
+  const { al, hw, tw, heard, target } = best, issues = [], bag = a => a.map(loose).sort().join(" ");
+  const order = bag(hw) === bag(tw), wrong = wordStates(target, al).filter(w => w.st !== "ok" && bare(w.wd));
+  if (order) issues.push("All the right words, but the order is off.");
+  else for (const w of wrong) {
+    if (issues.length >= 2) continue;
+    issues.push(w.got ? `You said “${esc(w.got)}”, it's “${esc(bare(w.wd))}”.` : `Missing: “${esc(bare(w.wd))}”.`);
+  }
+  if (!issues.length && hw.length > tw.length) issues.push("There are extra words in your sentence.");
+  return { v: "bad", heard, target, al, issues, order, wrong: wrong.map(w => bare(w.wd).toLowerCase()) };
+}
+async function teachBuild() {
+  const t = task(), st = bstep(t);
+  try {
+    const a = await getAnswer(); if (!a || task() !== t) return;
+    if (T.r) { // saying the right sentence once after a miss
+      T.r.again = judgeBuild(st, a.alts); T.tries++;
+      if (T.r.again.v === "ok") { addXP(1); chime(false); }
+      save(); render(); return;
+    }
+    const j = judgeBuild(st, a.alts); T.r = j; T.tries++; j.typed = a.typed;
+    if (!t.retest) T.n++;
+    if (j.v === "ok") { if (!t.retest && !T.hint) T.ok++; addXP(T.hint ? 2 : 4); chime(false); }
+    else { requeue(t, 3); T.bmiss.push(bkey(t)); logMiss({ b: bkey(t), got: j.heard }); }
+    if (t.review && !t.retest) { T.prevSent = S.sents[bkey(t)]; gradeSent(bkey(t), j.v !== "ok" ? 0 : T.hint ? 1 : 2); }
+    save(); render(); say(st.de);
+  } catch (err) { micError(err); render(); }
+}
+function teachBuildShow() {
+  const t = task(), st = bstep(t);
+  T.r = { v: "bad", gave: true, target: st.de, issues: [] };
+  if (!t.retest) T.n++;
+  requeue(t, 3); T.bmiss.push(bkey(t)); logMiss({ b: bkey(t), k: "dk" });
+  if (t.review && !t.retest) gradeSent(bkey(t), 0);
+  save(); render(); say(st.de);
+}
+function teachBuildOverride() {
+  // the recogniser misheard a right answer: undo the miss
+  const t = task(); if (!T.r || T.r.v === "ok" || T.r.gave) return;
+  if (!t.retest && !T.hint) T.ok++;
+  T.bmiss = T.bmiss.filter(k => k !== bkey(t)); if (S.mlog?.length && S.mlog[S.mlog.length - 1].b === bkey(t)) S.mlog.pop();
+  const k = T.tasks.findIndex((x, j) => j > T.i && x.retest && x.type === "build" && bkey(x) === bkey(t)); if (k > 0) T.tasks.splice(k, 1);
+  if (t.review && !t.retest) { if (T.prevSent) S.sents[bkey(t)] = T.prevSent; else delete S.sents[bkey(t)]; gradeSent(bkey(t), 2); }
+  addXP(3); nextTask();
+}
+function tBuild(t) {
+  const st = bstep(t), r = T.r, L = LESSON[t.lesson];
+  const badge = t.retest ? `<span class="badge hard">Once more</span>` : t.review ? `<span class="badge">From Lektion ${L.id}</span>` : `<span class="badge">${t.si + 1} of ${chainOf(t.lesson, t.gi).steps.length}</span>`;
+  const head = `${badge}<span class="label">Say it in German</span><span class="prompt big">${esc(st.en)}</span>${st.nw ? `<span class="sub small">New: ${esc(st.nw)}</span>` : ""}`;
+  if (!r) {
+    const words = st.de.split(" ");
+    return head + (T.hint ? `<div class="sentence hintline">${esc(words.slice(0, T.hint).join(" "))} …</div>` : "")
+      + micOrType("teachBuild", "Auf Deutsch …")
+      + `<div class="row" style="justify-content:center">${T.hint < words.length - 1 ? `<button class="btn ghost" data-act="teachBuildHint">${T.hint ? "One more word" : "Give me a start"}</button>` : ""}<button class="btn ghost" data-act="teachBuildShow">Show me</button></div>`;
+  }
+  const said = r.typed ? "You wrote" : "I heard";
+  if (r.v === "ok") return `<span class="sub">${esc(st.en)}</span>` + verdictHTML({ v: "ok", title: T.hint ? "Richtig! Next time without the start." : "Richtig!", detail: r.umlaut ? "Watch the umlauts: ä, ö, ü." : "" })
+    + `<div class="models"><div class="model">${playBtn(st.de)}<span>${esc(st.de)}</span></div>${r.target !== st.de ? `<div class="model">${playBtn(r.target)}<span>${esc(r.target)} <span class="muted small">(yours, also right)</span></span></div>` : ""}</div>` + nextBtn();
+  // the reason only when it's about the mistake actually made
+  const why = st.why && (r.gave || (r.order ? /end|first|second|goes|position|behind|order/i.test(st.why) : r.wrong.some(w => st.why.toLowerCase().includes(w))));
+  const detail = [r.gave ? "" : `${said}: “${esc(r.heard)}”`, ...r.issues, why ? `<b>Why:</b> ${esc(st.why)}` : ""].filter(Boolean).join("<br>");
+  const again = r.again;
+  const fix = r.gave || r.typed || micBlocked ? "" : again && again.v === "ok" ? verdictHTML({ v: "ok", title: "Gut, that's it. It comes back in a moment." })
+    : `${teacherSays(again ? `Not yet, I heard “${esc(again.heard)}”. Listen once more and say it.` : "Now say it right, once.")}${micOrType("teachBuild", "")}`;
+  const done = r.gave || r.typed || micBlocked || (again && again.v === "ok") || T.tries >= 4;
+  return `<span class="sub">${esc(st.en)}</span>${verdictHTML({ v: "bad", title: r.gave ? "Here it is" : "Not quite", detail })}
+    <div class="models"><span class="label">Right</span><div class="model">${playBtn(r.target)}<span class="sentence">${r.al ? markWords(r.target, r.al) : esc(r.target)}</span></div></div>
+    ${fix}<div class="row" style="justify-content:center">${done ? nextBtn() : `<button class="btn ghost" data-act="teachSkip">Skip</button>`}${!r.gave && !r.typed && !micBlocked && !again ? `<button class="btn ghost" data-act="teachBuildOverride">I said it right</button>` : ""}</div>`;
 }
 function teachExCheck() {
   const t = task(), e = LESSON[t.lesson].ex[t.i], box = $(`.ex[data-i="${t.i}"]`); let ok = false, answered = true;
@@ -1339,6 +1471,8 @@ function learnerProfile() {
   if (wm.length) out.push(`Recent word mistakes (last 2 weeks): ${[...new Set(wm)].join("; ")}.`);
   const em = recent.filter(m => m.ex).map(m => { const [lid, i] = m.ex.split(":"), e = LESSON[lid]?.ex[i]; return e ? `"${e.q || e.a}" → correct: ${e.type === "mc" ? e.opts[e.a] : e.type === "gap" ? e.a.join(" … ") : e.a}${m.got ? ` (Or answered: ${m.got})` : ""}` : null; }).filter(Boolean);
   if (em.length) out.push(`Recent exercise mistakes: ${[...new Set(em)].slice(-8).join("; ")}.`);
+  const bm = recent.filter(m => m.b && bstepOf(m.b)).map(m => `"${bstepOf(m.b).en}" → ${bstepOf(m.b).de}${m.got ? ` (Or said: ${m.got})` : ""}`);
+  if (bm.length) out.push(`Recent sentence-building mistakes (English prompt → correct German): ${[...new Set(bm)].slice(-8).join("; ")}.`);
   const today_ = S.days[today()]; out.push(`Today: ${today_ ? `${today_.lessons || 0} lesson(s), ${today_.xp || 0} XP` : "no practice yet"}.`);
   out.push(tnotes().length ? `Teacher notes (kept by the app from earlier conversations, any model):\n${tnotes().map((n, i) => `${i + 1}. ${n.text} (${new Date(n.t).toISOString().slice(0, 10)})`).join("\n")}` : "Teacher notes: none yet.");
   return out.join("\n");
@@ -1586,6 +1720,10 @@ const A = {
   teachTalk: () => teachTalk(), teachTalkType: () => teachTalk(),
   teachDontKnow: () => teachDontKnow(), teachOverride: () => teachOverride(),
   teachExCheck: () => teachExCheck(),
+  teachBuild: () => teachBuild(), teachBuildType: () => teachBuild(),
+  teachBuildHint: () => { T.hint++; render(); $("#typein")?.focus(); },
+  teachBuildShow: () => teachBuildShow(), teachBuildOverride: () => teachBuildOverride(),
+  teachSkip: () => nextTask(),
   nav: d => { if (dict) stopDictation(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },

@@ -15,14 +15,26 @@ def key(t):
         if not h: return s
 texts = json.load(open(os.environ.get("TEXTS") or os.path.join(here, "texts.json")))
 cache_dir = os.path.join(here, ".audio-cache"); os.makedirs(cache_dir, exist_ok=True)
-syn = Synthesizer(tts_checkpoint=f"{M}/model_file.pth", tts_config_path=f"{M}/config.json", use_cuda=False)
+syn = None
+def synth(t):
+    global syn
+    syn = syn or Synthesizer(tts_checkpoint=f"{M}/model_file.pth", tts_config_path=f"{M}/config.json", use_cuda=False)
+    return syn.tts(t)
 packs, index = {}, {}
+# clips already in the published packs are reused, so only new texts get synthesised
+old = {}
+for d in [os.path.join(here, "audio"), os.path.join(here, "docs", "audio")]:
+    if os.path.isdir(d):
+        for f in os.listdir(d):
+            if f.startswith("p") and f.endswith(".json"): old.update(json.load(open(os.path.join(d, f))))
+        break
 ONLY = os.environ.get("ONLY_PACKS")  # cache-only mode for parallel runs, e.g. ONLY_PACKS=13,14
 for n, (t, p) in enumerate(texts.items()):
     if ONLY and str(p) not in ONLY.split(","): continue
     k = key(t); f = os.path.join(cache_dir, k + ".mp3")
+    if k in old and not os.path.exists(f): open(f, "wb").write(base64.b64decode(old[k]))
     if not os.path.exists(f):
-        wav = np.clip(np.array(syn.tts(t)), -1, 1)
+        wav = np.clip(np.array(synth(t)), -1, 1)
         # trim leading/trailing silence, add a short pad
         nz = np.where(np.abs(wav) > 0.02)[0]
         if len(nz): wav = wav[max(0, nz[0] - 1500): nz[-1] + 2500]
