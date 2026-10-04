@@ -4704,6 +4704,817 @@ BUILD[12] = [
   ] }
 ];
 
+// "Bauen" chains for A2, written for this app (original sentences). Format: see a1.js.
+BUILD[13] = [
+  { tip: "<b>Wo?</b> (where something is) takes the Dativ: <b>an der</b> Wand. <b>Wohin?</b> (where something goes) takes the Akkusativ: <b>an die</b> Wand.", steps: [
+    { en: "The picture is on the wall.", de: "Das Bild ist an der Wand.", alt: ["Das Bild hängt an der Wand."] },
+    { en: "I'm hanging the picture on the wall.", de: "Ich hänge das Bild an die Wand.", why: "Movement to a place (wohin?): Akkusativ, an die Wand." },
+    { en: "The keys are on the table.", de: "Die Schlüssel sind auf dem Tisch.", alt: ["Die Schlüssel liegen auf dem Tisch."] },
+    { en: "I'm putting the keys on the table.", de: "Ich lege die Schlüssel auf den Tisch.", why: "Movement: auf den Tisch (Akkusativ)." },
+    { en: "The boxes are in the cellar.", de: "Die Kisten sind im Keller.", alt: ["Die Kisten stehen im Keller."] },
+    { en: "We're carrying the boxes into the cellar.", de: "Wir tragen die Kisten in den Keller.", why: "Movement: in den Keller (Akkusativ), not im Keller." },
+    { en: "The shelf is standing between the window and the door.", de: "Das Regal steht zwischen dem Fenster und der Tür.", why: "No movement (wo?): zwischen + Dativ." }
+  ] },
+  { tip: "Putting something somewhere: <b>stellen</b> (upright), <b>legen</b> (flat), <b>hängen</b> + Akkusativ. Where it then is: <b>stehen</b>, <b>liegen</b>, <b>hängen</b> + Dativ.", steps: [
+    { en: "I'm putting the bottle in the fridge.", de: "Ich stelle die Flasche in den Kühlschrank.", why: "A bottle stands upright: stellen, and in den (movement)." },
+    { en: "The bottle is in the fridge.", de: "Die Flasche steht im Kühlschrank." },
+    { en: "I'm putting the book on the shelf.", de: "Ich stelle das Buch ins Regal.", alt: ["Ich lege das Buch ins Regal.", "Ich stelle das Buch in das Regal.", "Ich lege das Buch auf das Regal."] },
+    { en: "I'm putting the carpet on the floor.", de: "Ich lege den Teppich auf den Boden." },
+    { en: "The carpet is lying on the floor.", de: "Der Teppich liegt auf dem Boden.", why: "Position (wo?): liegen + Dativ, auf dem Boden." },
+    { en: "Where should I put the mirror?", de: "Wohin soll ich den Spiegel hängen?", alt: ["Wohin soll ich den Spiegel stellen?", "Wo soll ich den Spiegel hinhängen?"] },
+    { en: "Hang the mirror in the hallway, next to the door. (du)", de: "Häng den Spiegel in den Flur, neben die Tür.", alt: ["Hänge den Spiegel in den Flur, neben die Tür."], why: "Both are movement, so both Akkusativ: in den Flur, neben die Tür." }
+  ] }
+];
+BUILD[14] = [
+  { tip: "For the past of sein and haben, Germans say <b>war</b> and <b>hatte</b>: ich war, du warst, wir waren; ich hatte, du hattest, wir hatten.", steps: [
+    { en: "I was a student.", de: "Ich war Schüler.", alt: ["Ich war Schülerin."] },
+    { en: "I was a lazy student.", de: "Ich war ein fauler Schüler.", alt: ["Ich war eine faule Schülerin."] },
+    { en: "I had good grades in maths.", de: "Ich hatte gute Noten in Mathematik.", alt: ["Ich hatte gute Noten in Mathe."] },
+    { en: "Back then we had a strict teacher.", de: "Damals hatten wir einen strengen Lehrer.", alt: ["Damals hatten wir eine strenge Lehrerin."], why: "Damals first, so the verb comes next: hatten wir." },
+    { en: "Were you hard-working at school? (du)", de: "Warst du fleißig in der Schule?", alt: ["Warst du in der Schule fleißig?"] },
+    { en: "The exam was difficult, but I had luck.", de: "Die Prüfung war schwierig, aber ich hatte Glück.", nw: "das Glück = luck" }
+  ] },
+  { tip: "Modal verbs in the past: stem + <b>-te</b>, and the umlaut goes: können → ich <b>konnte</b>, müssen → ich <b>musste</b>, wollen → ich <b>wollte</b>.", steps: [
+    { en: "I had to learn a lot.", de: "Ich musste viel lernen.", why: "müssen → musste (no umlaut)." },
+    { en: "I couldn't go to university.", de: "Ich konnte nicht studieren.", alt: ["Ich konnte nicht an die Universität gehen."] },
+    { en: "I wanted to become a doctor.", de: "Ich wollte Arzt werden.", alt: ["Ich wollte Ärztin werden."], nw: "werden = to become" },
+    { en: "We weren't allowed to use a phone in class.", de: "Wir durften im Unterricht kein Handy benutzen.", nw: "benutzen = to use" },
+    { en: "Back then I had to repeat the exam.", de: "Damals musste ich die Prüfung wiederholen." },
+    { en: "I wanted to do an apprenticeship, but I had to study.", de: "Ich wollte eine Ausbildung machen, aber ich musste studieren." }
+  ] },
+  { tip: "Verbs with <b>be-, ver-, er-</b> and verbs ending in <b>-ieren</b> get no ge- in the Perfekt: ich habe <b>verstanden</b>, ich habe <b>studiert</b>.", steps: [
+    { en: "I understood.", de: "Ich habe verstanden.", alt: ["Ich habe es verstanden.", "Ich habe das verstanden."] },
+    { en: "I passed the exam.", de: "Ich habe die Prüfung bestanden.", why: "bestehen has be-, so no ge-: bestanden." },
+    { en: "The teacher explained the grammar.", de: "Der Lehrer hat die Grammatik erklärt.", alt: ["Die Lehrerin hat die Grammatik erklärt."] },
+    { en: "I forgot my homework.", de: "Ich habe meine Hausaufgaben vergessen.", alt: ["Ich habe meine Hausaufgabe vergessen."] },
+    { en: "I studied history in Tel Aviv.", de: "Ich habe in Tel Aviv Geschichte studiert.", alt: ["Ich habe Geschichte in Tel Aviv studiert."] },
+    { en: "What happened?", de: "Was ist passiert?", why: "passieren takes sein: ist passiert." },
+    { en: "She told me what happened.", de: "Sie hat mir erzählt, was passiert ist.", why: "In a was-clause the verb goes to the end: was passiert ist." }
+  ] }
+];
+BUILD[15] = [
+  { tip: "<b>weil</b> sends the verb to the very end: Ich bleibe länger, weil ich viel Arbeit <b>habe</b>.", steps: [
+    { en: "I have a lot of work.", de: "Ich habe viel Arbeit." },
+    { en: "I'm staying longer because I have a lot of work.", de: "Ich bleibe länger, weil ich viel Arbeit habe.", why: "After weil, habe goes to the end." },
+    { en: "He isn't calling because his phone is dead.", de: "Er ruft nicht an, weil sein Handy leer ist.", why: "Verb at the end: weil sein Handy leer ist." },
+    { en: "I'm coming later because the train is late.", de: "Ich komme später, weil der Zug Verspätung hat.", alt: ["Ich komme später, weil der Zug zu spät ist.", "Ich komme später, weil der Zug spät ist."], nw: "Verspätung haben = to be late (trains)" },
+    { en: "I can't print because the printer doesn't work.", de: "Ich kann nicht drucken, weil der Drucker nicht funktioniert." },
+    { en: "I have to postpone the meeting because a customer is coming.", de: "Ich muss die Besprechung verschieben, weil ein Kunde kommt." },
+    { en: "I'm doing overtime because the project is urgent.", de: "Ich mache Überstunden, weil das Projekt dringend ist." }
+  ] },
+  { tip: "<b>dass</b> works like weil: comma, then the verb at the end. Ich glaube, dass der Drucker kaputt <b>ist</b>.", steps: [
+    { en: "I think that the printer is broken.", de: "Ich glaube, dass der Drucker kaputt ist." },
+    { en: "I know that he isn't coming today.", de: "Ich weiß, dass er heute nicht kommt.", why: "kommt goes to the end." },
+    { en: "She says that she sent the file.", de: "Sie sagt, dass sie die Datei geschickt hat.", why: "In the dass-clause, hat goes after the participle: geschickt hat." },
+    { en: "I hope that you're well. (du)", de: "Ich hoffe, dass es dir gut geht.", nw: "es geht dir gut = you're well" },
+    { en: "Did you know that the meeting is today? (du)", de: "Wusstest du, dass die Besprechung heute ist?", alt: ["Hast du gewusst, dass die Besprechung heute ist?"], nw: "wusstest du = did you know" },
+    { en: "I'm sorry that I didn't answer.", de: "Es tut mir leid, dass ich nicht geantwortet habe.", nw: "es tut mir leid = I'm sorry" }
+  ] },
+  { tip: "On the phone at work: <b>Kann ich bitte mit … sprechen?</b> · <b>Kann ich etwas ausrichten?</b> · <b>Ich rufe später zurück.</b>", steps: [
+    { en: "Can I please speak to Ms Koch?", de: "Kann ich bitte mit Frau Koch sprechen?", alt: ["Kann ich bitte Frau Koch sprechen?"] },
+    { en: "One moment, I'll put you through.", de: "Einen Moment, ich verbinde Sie.", alt: ["Einen Moment bitte, ich verbinde Sie."] },
+    { en: "She's not at her desk right now.", de: "Sie ist gerade nicht am Platz." },
+    { en: "Can I take a message?", de: "Kann ich etwas ausrichten?" },
+    { en: "Could she call me back?", de: "Kann sie mich zurückrufen?", alt: ["Könnte sie mich zurückrufen?"], why: "zurückrufen stays together at the end after a modal verb." },
+    { en: "I'll call back later.", de: "Ich rufe später zurück.", alt: ["Ich rufe später noch einmal an."] },
+    { en: "Please tell her that I called.", de: "Bitte sagen Sie ihr, dass ich angerufen habe.", alt: ["Sagen Sie ihr bitte, dass ich angerufen habe."] }
+  ] }
+];
+BUILD[16] = [
+  { tip: "Reflexive verbs need <b>mich, dich, sich, uns, euch</b>: ich fühle <b>mich</b> gut, du ruhst <b>dich</b> aus.", steps: [
+    { en: "I feel good.", de: "Ich fühle mich gut." },
+    { en: "Do you feel good? (du)", de: "Fühlst du dich gut?" },
+    { en: "She eats healthily.", de: "Sie ernährt sich gesund." },
+    { en: "We don't move enough.", de: "Wir bewegen uns nicht genug.", alt: ["Wir bewegen uns zu wenig."] },
+    { en: "At the weekend I rest.", de: "Am Wochenende ruhe ich mich aus.", why: "ausruhen splits: ruhe ich mich … aus." },
+    { en: "I'm looking forward to the weekend.", de: "Ich freue mich auf das Wochenende.", alt: ["Ich freue mich aufs Wochenende."] },
+    { en: "After work I want to relax.", de: "Nach der Arbeit will ich mich entspannen.", alt: ["Nach der Arbeit möchte ich mich entspannen."], why: "With a modal verb the pronoun stays near the front, the infinitive goes to the end." }
+  ] },
+  { tip: "Friendly advice: <b>du solltest</b> / <b>Sie sollten</b> + infinitive at the end. Du solltest mehr Wasser <b>trinken</b>.", steps: [
+    { en: "You should drink more water. (du)", de: "Du solltest mehr Wasser trinken." },
+    { en: "You should take the stairs. (du)", de: "Du solltest die Treppe nehmen." },
+    { en: "You should stop smoking. (Sie)", de: "Sie sollten mit dem Rauchen aufhören.", alt: ["Sie sollten aufhören zu rauchen."] },
+    { en: "We should exercise regularly.", de: "Wir sollten regelmäßig trainieren.", alt: ["Wir sollten regelmäßig Sport machen."] },
+    { en: "You should eat less sugar and salt. (du)", de: "Du solltest weniger Zucker und Salz essen.", nw: "weniger = less" },
+    { en: "If you're stressed, you should go for a walk. (du)", de: "Wenn du Stress hast, solltest du spazieren gehen.", alt: ["Wenn du gestresst bist, solltest du spazieren gehen.", "Wenn du Stress hast, solltest du einen Spaziergang machen."], why: "After the wenn-clause the verb comes first: solltest du." }
+  ] },
+  { tip: "Direct tips: du → <b>Trink!</b> <b>Nimm!</b> · ihr → <b>Esst!</b> · Sie → <b>Machen Sie!</b>", steps: [
+    { en: "Drink more water! (du)", de: "Trink mehr Wasser!", alt: ["Trinke mehr Wasser!"] },
+    { en: "Take the stairs! (du)", de: "Nimm die Treppe!" },
+    { en: "Eat more fruit! (ihr)", de: "Esst mehr Obst!" },
+    { en: "Take a break! (Sie)", de: "Machen Sie eine Pause!" },
+    { en: "Rest! (du)", de: "Ruh dich aus!", alt: ["Ruhe dich aus!"], why: "Reflexive in the imperative: Ruh dich aus!" },
+    { en: "Don't get annoyed! (du)", de: "Ärger dich nicht!", alt: ["Ärgere dich nicht!"] },
+    { en: "Go jogging regularly and sleep enough! (du)", de: "Geh regelmäßig joggen und schlaf genug!", alt: ["Gehe regelmäßig joggen und schlafe genug!"] }
+  ] }
+];
+BUILD[17] = [
+  { tip: "After <b>der/die/das</b> the adjective ends in <b>-e</b> or <b>-en</b>: der neu<b>e</b> Mantel, den neu<b>en</b> Mantel, die neu<b>en</b> Schuhe.", steps: [
+    { en: "The coat is new.", de: "Der Mantel ist neu." },
+    { en: "The new coat is warm.", de: "Der neue Mantel ist warm." },
+    { en: "I'm buying the new coat.", de: "Ich kaufe den neuen Mantel.", why: "den … -en: den neuen Mantel." },
+    { en: "The black shoes are comfortable.", de: "Die schwarzen Schuhe sind bequem.", why: "Plural: always -en." },
+    { en: "I'm trying on the elegant blouse.", de: "Ich probiere die elegante Bluse an." },
+    { en: "Do you like the striped shirt? (du)", de: "Gefällt dir das gestreifte Hemd?", why: "gefallen: the thing is the subject, dir is the person." },
+    { en: "The brown boots don't fit me.", de: "Die braunen Stiefel passen mir nicht." }
+  ] },
+  { tip: "Where <b>ein</b> has no ending, the adjective shows the gender: ein warm<b>er</b> Mantel, ein warm<b>es</b> Kleid. Otherwise -e / -en.", steps: [
+    { en: "I need a warm coat.", de: "Ich brauche einen warmen Mantel.", why: "einen … -en in the Akkusativ." },
+    { en: "That's a warm coat.", de: "Das ist ein warmer Mantel.", why: "ein has no ending, so the adjective shows der: -er." },
+    { en: "She's wearing an elegant dress.", de: "Sie trägt ein elegantes Kleid." },
+    { en: "I'm looking for a comfortable jacket.", de: "Ich suche eine bequeme Jacke." },
+    { en: "He has a checked shirt and a modern suit.", de: "Er hat ein kariertes Hemd und einen modernen Anzug." },
+    { en: "I don't have any warm socks.", de: "Ich habe keine warmen Socken." }
+  ] },
+  { tip: "<b>welch-</b> (which?) and <b>dies-</b> (this) take der/die/das endings: welch<b>er</b> Mantel? dies<b>en</b> Mantel.", steps: [
+    { en: "Which coat do you like? (du)", de: "Welcher Mantel gefällt dir?" },
+    { en: "This coat.", de: "Dieser Mantel." },
+    { en: "Which jacket are you buying? (du)", de: "Welche Jacke kaufst du?" },
+    { en: "I'm taking this jacket.", de: "Ich nehme diese Jacke." },
+    { en: "Which shoes fit you? (du)", de: "Welche Schuhe passen dir?" },
+    { en: "I'd like to try on this blue dress.", de: "Ich möchte dieses blaue Kleid anprobieren." },
+    { en: "Can I exchange this sweater?", de: "Kann ich diesen Pullover umtauschen?", why: "Akkusativ der → diesen." }
+  ] }
+];
+BUILD[18] = [
+  { tip: "Comparing two things: adjective + <b>-er</b> + <b>als</b>. Short words often add an umlaut: warm → w<b>ä</b>rmer, groß → gr<b>ö</b>ßer.", steps: [
+    { en: "The train is fast.", de: "Der Zug ist schnell." },
+    { en: "The train is faster than the bus.", de: "Der Zug ist schneller als der Bus.", why: "than = als, not dann." },
+    { en: "The holiday flat is cheaper than the hotel.", de: "Die Ferienwohnung ist günstiger als das Hotel.", alt: ["Die Ferienwohnung ist billiger als das Hotel."] },
+    { en: "In Israel it's warmer than in Germany.", de: "In Israel ist es wärmer als in Deutschland." },
+    { en: "I like the sea better than the mountains.", de: "Ich mag das Meer lieber als die Berge.", alt: ["Das Meer gefällt mir besser als die Berge."] },
+    { en: "The island is smaller, but more beautiful.", de: "Die Insel ist kleiner, aber schöner." },
+    { en: "A double room costs more than a single room.", de: "Ein Doppelzimmer kostet mehr als ein Einzelzimmer." }
+  ] },
+  { tip: "The most: <b>am … -sten</b> after a verb (am schönsten), <b>der/die/das … -ste</b> before a noun (der schönste Strand). gut → <b>am besten</b>.", steps: [
+    { en: "The beach is the most beautiful in summer.", de: "Der Strand ist im Sommer am schönsten.", alt: ["Im Sommer ist der Strand am schönsten."] },
+    { en: "That's the most beautiful beach.", de: "Das ist der schönste Strand." },
+    { en: "The hotel is the most expensive.", de: "Das Hotel ist am teuersten." },
+    { en: "We're taking the cheapest flat.", de: "Wir nehmen die günstigste Wohnung.", alt: ["Wir nehmen die billigste Wohnung."] },
+    { en: "Which city do you like best? (du)", de: "Welche Stadt gefällt dir am besten?" },
+    { en: "I like hiking most of all.", de: "Am liebsten wandere ich.", alt: ["Ich wandere am liebsten."] },
+    { en: "July is the hottest month.", de: "Der Juli ist der heißeste Monat." }
+  ] },
+  { tip: "<b>wenn</b> (if, whenever) sends the verb to the end. If the wenn-clause comes first, the main verb follows straight after the comma: Wenn es regnet, <b>bleiben wir</b> …", steps: [
+    { en: "We're going to the beach if the weather is nice.", de: "Wir gehen an den Strand, wenn das Wetter schön ist." },
+    { en: "If the weather is nice, we're going to the beach.", de: "Wenn das Wetter schön ist, gehen wir an den Strand.", why: "After the wenn-clause, the verb comes first: gehen wir." },
+    { en: "If it rains, we'll visit a museum.", de: "Wenn es regnet, besuchen wir ein Museum.", alt: ["Wenn es regnet, gehen wir ins Museum."] },
+    { en: "If the hotel is full, we'll sleep at the campsite.", de: "Wenn das Hotel voll ist, schlafen wir auf dem Campingplatz.", alt: ["Wenn das Hotel voll ist, übernachten wir auf dem Campingplatz."] },
+    { en: "If you have time, we can do an excursion. (du)", de: "Wenn du Zeit hast, können wir einen Ausflug machen." },
+    { en: "When I'm on holiday, I sleep long.", de: "Wenn ich Urlaub habe, schlafe ich lange.", alt: ["Wenn ich im Urlaub bin, schlafe ich lange."], nw: "lange = long (time)" }
+  ] }
+];
+BUILD[19] = [
+  { tip: "With geben, schenken, zeigen…: the person who receives is <b>Dativ</b> (dem, der), the thing is <b>Akkusativ</b>. Ich schenke <b>der</b> Mutter <b>einen</b> Strauß.", steps: [
+    { en: "I'm giving my mother a bouquet.", de: "Ich schenke meiner Mutter einen Strauß.", alt: ["Ich gebe meiner Mutter einen Strauß."], why: "The person gets the Dativ: meiner Mutter." },
+    { en: "I'm giving my father a voucher.", de: "Ich schenke meinem Vater einen Gutschein.", alt: ["Ich gebe meinem Vater einen Gutschein."] },
+    { en: "She's showing the guests the cake.", de: "Sie zeigt den Gästen die Torte.", why: "Dativ plural: den Gästen (with -n)." },
+    { en: "Can you lend your brother the car? (du)", de: "Kannst du deinem Bruder das Auto leihen?" },
+    { en: "We wish the hosts a nice evening.", de: "Wir wünschen den Gastgebern einen schönen Abend." },
+    { en: "I'm bringing the host a bottle of sparkling wine.", de: "Ich bringe dem Gastgeber eine Flasche Sekt.", alt: ["Ich bringe der Gastgeberin eine Flasche Sekt."] }
+  ] },
+  { tip: "Dativ pronouns: <b>mir, dir, ihm, ihr, uns, euch, ihnen, Ihnen</b>. helfen, danken, gratulieren, gefallen always take the Dativ.", steps: [
+    { en: "Can you help me? (du)", de: "Kannst du mir helfen?" },
+    { en: "I'm helping him.", de: "Ich helfe ihm." },
+    { en: "I congratulate you on your birthday. (du)", de: "Ich gratuliere dir zum Geburtstag." },
+    { en: "The present pleases her.", de: "Das Geschenk gefällt ihr.", alt: ["Ihr gefällt das Geschenk."] },
+    { en: "We thank you for the invitation. (Sie)", de: "Wir danken Ihnen für die Einladung." },
+    { en: "Does the cake taste good to you? (ihr)", de: "Schmeckt euch die Torte?", alt: ["Schmeckt euch der Kuchen?"] },
+    { en: "I'm giving them a candle.", de: "Ich schenke ihnen eine Kerze." }
+  ] },
+  { tip: "Two nouns: <b>Dativ, then Akkusativ</b>. A pronoun comes before a noun. Two pronouns: <b>Akkusativ, then Dativ</b>: Ich gebe <b>sie ihm</b>.", steps: [
+    { en: "I'm giving the boss the card.", de: "Ich gebe dem Chef die Karte." },
+    { en: "I'm giving him the card.", de: "Ich gebe ihm die Karte.", why: "A pronoun comes before a noun: ihm die Karte." },
+    { en: "I'm giving it to the boss.", de: "Ich gebe sie dem Chef.", why: "die Karte → sie, and the pronoun comes first." },
+    { en: "I'm giving it to him.", de: "Ich gebe sie ihm.", why: "Two pronouns: Akkusativ (sie) before Dativ (ihm)." },
+    { en: "Can you show me the photos? (du)", de: "Kannst du mir die Fotos zeigen?" },
+    { en: "Can you show them to me? (du)", de: "Kannst du sie mir zeigen?" },
+    { en: "I recommend this restaurant to you. (du)", de: "Ich empfehle dir dieses Restaurant." }
+  ] }
+];
+BUILD[20] = [
+  { tip: "A yes/no question inside a sentence uses <b>ob</b>, and the verb goes to the end: Weißt du, ob das WLAN <b>funktioniert</b>?", steps: [
+    { en: "Is the Wi-Fi working?", de: "Funktioniert das WLAN?" },
+    { en: "Do you know if the Wi-Fi is working? (du)", de: "Weißt du, ob das WLAN funktioniert?", why: "ob sends the verb to the end." },
+    { en: "I don't know if he has a charger.", de: "Ich weiß nicht, ob er ein Ladekabel hat." },
+    { en: "Can you tell me if the shop is open? (Sie)", de: "Können Sie mir sagen, ob der Laden geöffnet ist?", alt: ["Können Sie mir sagen, ob das Geschäft geöffnet ist?", "Können Sie mir sagen, ob der Laden offen ist?"], nw: "geöffnet / offen = open" },
+    { en: "I'm wondering if I saved the file.", de: "Ich frage mich, ob ich die Datei gespeichert habe.", why: "Perfekt in an ob-clause: gespeichert habe at the end." },
+    { en: "She asks if the app is free.", de: "Sie fragt, ob die App kostenlos ist.", nw: "kostenlos = free (of charge)" }
+  ] },
+  { tip: "Inside a sentence, the W-word stays at the start and the verb goes to the end: Ich weiß nicht, wo der Drucker <b>ist</b>.", steps: [
+    { en: "Where is the printer?", de: "Wo ist der Drucker?" },
+    { en: "Can you tell me where the printer is? (Sie)", de: "Können Sie mir sagen, wo der Drucker ist?" },
+    { en: "I don't know how the app works.", de: "Ich weiß nicht, wie die App funktioniert." },
+    { en: "Do you know when the course starts? (du)", de: "Weißt du, wann der Kurs anfängt?", alt: ["Weißt du, wann der Kurs beginnt?"], why: "anfangen stays together at the end: anfängt." },
+    { en: "I forgot what my password is.", de: "Ich habe vergessen, was mein Passwort ist." },
+    { en: "Tell me why the laptop is broken. (du)", de: "Sag mir, warum der Laptop kaputt ist.", alt: ["Sage mir, warum der Laptop kaputt ist."] }
+  ] },
+  { tip: "Many verbs come with a fixed preposition: <b>warten auf</b>, <b>sich interessieren für</b>, <b>sich kümmern um</b> (all + Akkusativ).", steps: [
+    { en: "I'm waiting for the technician.", de: "Ich warte auf den Techniker.", nw: "der Techniker = technician" },
+    { en: "I'm waiting for an email.", de: "Ich warte auf eine E-Mail." },
+    { en: "She's interested in technology.", de: "Sie interessiert sich für Technik." },
+    { en: "Are you interested in computers? (du)", de: "Interessierst du dich für Computer?" },
+    { en: "Who's taking care of the problem?", de: "Wer kümmert sich um das Problem?" },
+    { en: "I'll take care of it.", de: "Ich kümmere mich darum.", why: "um + it (a thing) = darum." },
+    { en: "He asked about the password.", de: "Er hat nach dem Passwort gefragt.", why: "fragen nach takes the Dativ: nach dem Passwort." }
+  ] }
+];
+BUILD[21] = [
+  { tip: "In steps, the order word takes position 1, the verb stays 2nd: <b>Zuerst schneidet man</b> die Zwiebeln. <b>Dann brät man</b> sie.", steps: [
+    { en: "First you cut the onions.", de: "Zuerst schneidet man die Zwiebeln.", why: "Zuerst first, then the verb, then man." },
+    { en: "Then you fry them in oil.", de: "Dann brät man sie in Öl.", alt: ["Dann brät man sie im Öl."] },
+    { en: "After that you add the garlic.", de: "Danach gibt man den Knoblauch dazu.", alt: ["Danach kommt der Knoblauch dazu."], nw: "dazugeben = to add" },
+    { en: "Then I stir everything well.", de: "Dann rühre ich alles gut um." },
+    { en: "Finally the cream goes in.", de: "Zum Schluss kommt die Sahne dazu.", alt: ["Zum Schluss kommt die Sahne hinein."] },
+    { en: "First I peel the potatoes, then I cook them.", de: "Zuerst schäle ich die Kartoffeln, dann koche ich sie." }
+  ] },
+  { tip: "No article? The adjective takes the article's ending: der → frisch<b>er</b> Fisch, das → frisch<b>es</b> Brot, die → frisch<b>e</b> Milch.", steps: [
+    { en: "Fresh fish is expensive.", de: "Frischer Fisch ist teuer." },
+    { en: "I like fresh bread.", de: "Ich mag frisches Brot." },
+    { en: "I eat spicy food.", de: "Ich esse scharfes Essen." },
+    { en: "With cold milk, please.", de: "Mit kalter Milch, bitte.", why: "mit + Dativ, die → der → kalter." },
+    { en: "I'll have a coffee with warm milk.", de: "Ich nehme einen Kaffee mit warmer Milch." },
+    { en: "We need fresh vegetables and good oil.", de: "Wir brauchen frisches Gemüse und gutes Öl." }
+  ] }
+];
+BUILD[22] = [
+  { tip: "<b>nicht müssen</b> = don't have to. <b>nicht dürfen</b> = mustn't. <b>nicht brauchen zu</b> = needn't.", steps: [
+    { en: "You must sign the form. (Sie)", de: "Sie müssen das Formular unterschreiben." },
+    { en: "You don't have to make an appointment. (Sie)", de: "Sie müssen keinen Termin vereinbaren.", why: "don't have to = nicht müssen (here keinen)." },
+    { en: "You mustn't park here. (Sie)", de: "Sie dürfen hier nicht parken.", why: "mustn't = nicht dürfen.", nw: "parken = to park" },
+    { en: "You needn't bring your passport. (Sie)", de: "Sie brauchen Ihren Reisepass nicht mitzubringen.", alt: ["Sie müssen Ihren Reisepass nicht mitbringen.", "Sie brauchen den Reisepass nicht mitzubringen."], nw: "mitbringen = to bring along" },
+    { en: "Do I have to pay a fee?", de: "Muss ich eine Gebühr bezahlen?" },
+    { en: "No, you don't have to pay anything. (Sie)", de: "Nein, Sie müssen nichts bezahlen.", nw: "nichts = nothing" }
+  ] },
+  { tip: "Referring back to a thing with a preposition: <b>da(r) + preposition</b>: darauf, dafür, damit. Asking: <b>wo(r) + preposition</b>: worauf, wofür.", steps: [
+    { en: "I'm waiting for the certificate.", de: "Ich warte auf die Bescheinigung." },
+    { en: "I'm waiting for it.", de: "Ich warte darauf.", why: "auf + a thing = darauf." },
+    { en: "What are you waiting for? (du)", de: "Worauf wartest du?" },
+    { en: "What are you interested in? (du)", de: "Wofür interessierst du dich?" },
+    { en: "I'm not interested in it.", de: "Ich interessiere mich nicht dafür." },
+    { en: "What can I pay with?", de: "Womit kann ich bezahlen?" },
+    { en: "Can I pay with it?", de: "Kann ich damit bezahlen?" }
+  ] }
+];
+BUILD[23] = [
+  { tip: "The future: <b>werden</b> in position 2, infinitive at the end: Ich <b>werde</b> mehr Fahrrad <b>fahren</b>.", steps: [
+    { en: "I'll ride my bike more.", de: "Ich werde mehr Fahrrad fahren." },
+    { en: "It will probably rain tomorrow.", de: "Morgen wird es wahrscheinlich regnen.", alt: ["Es wird morgen wahrscheinlich regnen."] },
+    { en: "We will save energy.", de: "Wir werden Energie sparen." },
+    { en: "You'll definitely manage it. (du)", de: "Du wirst das bestimmt schaffen.", alt: ["Du schaffst das bestimmt."], nw: "schaffen = to manage, bestimmt = definitely" },
+    { en: "In the future we'll use less electricity.", de: "In Zukunft werden wir weniger Strom verbrauchen.", alt: ["In der Zukunft werden wir weniger Strom verbrauchen."] },
+    { en: "Will the climate get warmer?", de: "Wird das Klima wärmer?", alt: ["Wird das Klima wärmer werden?"] }
+  ] },
+  { tip: "<b>deshalb</b> (so), <b>trotzdem</b> (anyway), <b>sonst</b> (otherwise) take position 1, so the verb comes next: …, <b>deshalb bleiben wir</b> zu Hause.", steps: [
+    { en: "It's hot, so we're staying at home.", de: "Es ist heiß, deshalb bleiben wir zu Hause.", why: "deshalb takes position 1: deshalb bleiben wir." },
+    { en: "It's raining. We're going for a walk anyway.", de: "Es regnet. Trotzdem gehen wir spazieren.", alt: ["Es regnet, trotzdem gehen wir spazieren."] },
+    { en: "Separate the rubbish, otherwise it's bad for the environment. (du)", de: "Trenn den Müll, sonst ist es schlecht für die Umwelt.", alt: ["Trenne den Müll, sonst ist es schlecht für die Umwelt."] },
+    { en: "The air is dirty, so I ride my bike.", de: "Die Luft ist schmutzig, deshalb fahre ich Fahrrad." },
+    { en: "The train is expensive. I take it anyway.", de: "Der Zug ist teuer. Trotzdem nehme ich ihn.", alt: ["Der Zug ist teuer, trotzdem nehme ich ihn."] },
+    { en: "We have to protect the forests, otherwise the animals will have no home.", de: "Wir müssen die Wälder schützen, sonst haben die Tiere kein Zuhause.", nw: "das Zuhause = home" }
+  ] }
+];
+BUILD[24] = [
+  { tip: "Wishes: <b>würde</b> + infinitive, or the short forms <b>hätte, wäre, könnte</b>. Ich <b>hätte</b> gern mehr Zeit.", steps: [
+    { en: "I'd like to have more time.", de: "Ich hätte gern mehr Zeit." },
+    { en: "That would be nice.", de: "Das wäre schön." },
+    { en: "I would like to travel.", de: "Ich würde gern reisen." },
+    { en: "I'd like to have more friends here.", de: "Ich hätte gern mehr Freunde hier." },
+    { en: "It would be great if you could come. (du)", de: "Es wäre toll, wenn du kommen könntest.", nw: "toll = great" },
+    { en: "Actually I'd rather stay at home.", de: "Eigentlich würde ich lieber zu Hause bleiben." }
+  ] },
+  { tip: "Polite requests: <b>Könntest du …?</b> <b>Würden Sie …?</b> <b>Hättest du …?</b>", steps: [
+    { en: "Help me! (du)", de: "Hilf mir!" },
+    { en: "Could you help me, please? (du)", de: "Könntest du mir bitte helfen?" },
+    { en: "Would you speak more slowly, please? (Sie)", de: "Würden Sie bitte langsamer sprechen?", nw: "langsamer = more slowly" },
+    { en: "Would you have time tomorrow? (du)", de: "Hättest du morgen Zeit?" },
+    { en: "Could you call me back? (Sie)", de: "Könnten Sie mich zurückrufen?" },
+    { en: "Would you be so kind and close the window? (Sie)", de: "Wären Sie so nett und würden das Fenster schließen?", alt: ["Wären Sie so nett, das Fenster zu schließen?", "Würden Sie bitte das Fenster schließen?"], nw: "schließen = to close" }
+  ] },
+  { tip: "<b>sich freuen auf</b> = look forward to (future). <b>sich freuen über</b> = be glad about (now/past). <b>sich ärgern über</b> = be annoyed about. All + Akkusativ.", steps: [
+    { en: "I'm looking forward to the weekend.", de: "Ich freue mich auf das Wochenende.", alt: ["Ich freue mich aufs Wochenende."] },
+    { en: "She's happy about the present.", de: "Sie freut sich über das Geschenk.", why: "The present is already here: freuen über." },
+    { en: "I'm annoyed about the noise.", de: "Ich ärgere mich über den Lärm." },
+    { en: "Are you looking forward to the holiday? (du)", de: "Freust du dich auf den Urlaub?" },
+    { en: "We're glad about your visit. (du)", de: "Wir freuen uns über deinen Besuch.", nw: "der Besuch = visit" },
+    { en: "What are you annoyed about? (du)", de: "Worüber ärgerst du dich?" },
+    { en: "I'm looking forward to it.", de: "Ich freue mich darauf." }
+  ] }
+];
+
+// "Bauen" chains for B1, written for this app (original sentences). Format: see a1.js.
+BUILD[25] = [
+  { tip: "A relative clause describes a noun: comma, <b>der/die/das</b> (gender from the noun, case from its role in the clause), verb at the end. Die Stadt, <b>die</b> ich mag, <b>ist</b> …", steps: [
+    { en: "That's the village.", de: "Das ist das Dorf." },
+    { en: "That's the village that I like.", de: "Das ist das Dorf, das ich mag.", why: "das Dorf → das, and the verb goes to the end." },
+    { en: "That's the village where I grew up.", de: "Das ist das Dorf, in dem ich aufgewachsen bin.", alt: ["Das ist das Dorf, wo ich aufgewachsen bin."] },
+    { en: "I have a neighbour who commutes every day.", de: "Ich habe einen Nachbarn, der jeden Tag pendelt.", why: "der Nachbar is the subject in the clause: der. Nachbar adds -n: einen Nachbarn." },
+    { en: "The flat that we're renting is in a suburb.", de: "Die Wohnung, die wir mieten, liegt in einem Vorort.", alt: ["Die Wohnung, die wir mieten, ist in einem Vorort."], nw: "mieten = to rent" },
+    { en: "The man who I met yesterday lives on a farm.", de: "Der Mann, den ich gestern getroffen habe, wohnt auf einem Bauernhof.", why: "In the clause the man is the object: den." },
+    { en: "I'm looking for an area that is quiet and green.", de: "Ich suche eine Gegend, die ruhig und grün ist." }
+  ] },
+  { tip: "In the Dativ the relative pronouns are <b>dem, der, dem, denen</b>. A preposition goes in front: die Stadt, <b>in der</b> ich wohne.", steps: [
+    { en: "The woman whom I helped lives on the third floor.", de: "Die Frau, der ich geholfen habe, wohnt im dritten Stock.", why: "helfen takes the Dativ: der (feminine)." },
+    { en: "That's the town I live in.", de: "Das ist die Stadt, in der ich wohne.", alt: ["Das ist die Stadt, wo ich wohne."] },
+    { en: "The friend I go hiking with has a car.", de: "Der Freund, mit dem ich wandern gehe, hat ein Auto." },
+    { en: "The neighbours I talk to are very friendly.", de: "Die Nachbarn, mit denen ich spreche, sind sehr freundlich.", why: "Plural Dativ: denen.", nw: "freundlich = friendly" },
+    { en: "The house the garden belongs to is old.", de: "Das Haus, zu dem der Garten gehört, ist alt." },
+    { en: "The people I work with live in the city.", de: "Die Leute, mit denen ich arbeite, wohnen in der Stadt." }
+  ] },
+  { tip: "Pros and cons: <b>Ein Vorteil ist, dass …</b> · <b>Einerseits …, andererseits …</b> · <b>…, dafür …</b> (but in return).", steps: [
+    { en: "One advantage is that the rents are low.", de: "Ein Vorteil ist, dass die Mieten niedrig sind.", nw: "niedrig = low" },
+    { en: "One disadvantage is that the connections are bad.", de: "Ein Nachteil ist, dass die Verbindungen schlecht sind." },
+    { en: "On the one hand it's quiet, on the other hand it's boring.", de: "Einerseits ist es ruhig, andererseits ist es langweilig.", why: "Both words take position 1, so the verb comes next.", nw: "langweilig = boring" },
+    { en: "The flat is small, but in return it's central.", de: "Die Wohnung ist klein, dafür ist sie zentral.", nw: "zentral = central" },
+    { en: "In the city there's more on offer, but also more traffic.", de: "In der Stadt gibt es mehr Angebote, aber auch mehr Verkehr.", alt: ["In der Stadt gibt es ein größeres Angebot, aber auch mehr Verkehr."], nw: "es gibt = there is / there are" },
+    { en: "On the one hand I enjoy the peace, on the other hand I miss my friends.", de: "Einerseits genieße ich die Ruhe, andererseits vermisse ich meine Freunde." }
+  ] }
+];
+BUILD[26] = [
+  { tip: "After verbs like <b>versuchen, vergessen, hoffen, vorhaben</b>, a second verb comes as <b>zu</b> + infinitive at the end: Ich versuche, pünktlich <b>zu kommen</b>.", steps: [
+    { en: "I'm trying to come on time.", de: "Ich versuche, pünktlich zu kommen." },
+    { en: "I forgot to send the CV.", de: "Ich habe vergessen, den Lebenslauf zu schicken." },
+    { en: "I'm planning to apply for the job.", de: "Ich habe vor, mich um die Stelle zu bewerben.", why: "vorhaben + zu; the reflexive pronoun stays: mich … zu bewerben." },
+    { en: "I hope to hear from you soon. (Sie)", de: "Ich hoffe, bald von Ihnen zu hören." },
+    { en: "It's important to be reliable.", de: "Es ist wichtig, zuverlässig zu sein." },
+    { en: "Do you have time to introduce yourself? (Sie)", de: "Haben Sie Zeit, sich vorzustellen?", why: "With separable verbs, zu goes in the middle: vorzustellen." },
+    { en: "I've started to learn German every day.", de: "Ich habe angefangen, jeden Tag Deutsch zu lernen." }
+  ] },
+  { tip: "Purpose: <b>um … zu</b> when the subject is the same; <b>damit</b> + verb at the end when it's different.", steps: [
+    { en: "I'm learning German to work in Germany.", de: "Ich lerne Deutsch, um in Deutschland zu arbeiten." },
+    { en: "I'm doing a further training course to earn more.", de: "Ich mache eine Weiterbildung, um mehr zu verdienen." },
+    { en: "I speak slowly so that you understand me. (du)", de: "Ich spreche langsam, damit du mich verstehst.", why: "Different subjects (ich / du): damit, not um … zu." },
+    { en: "I'm sending you my CV so that you can read it. (Sie)", de: "Ich schicke Ihnen meinen Lebenslauf, damit Sie ihn lesen können." },
+    { en: "She works part-time to have more time for the children.", de: "Sie arbeitet Teilzeit, um mehr Zeit für die Kinder zu haben." },
+    { en: "The company hires new staff so that the team gets bigger.", de: "Die Firma stellt neue Mitarbeiter ein, damit das Team größer wird.", nw: "der Mitarbeiter = employee" }
+  ] }
+];
+BUILD[27] = [
+  { tip: "Telling a story, Germans use the <b>Präteritum</b>: regular verbs add <b>-te</b> (spielte, wohnte), irregular ones change the stem (ging, kam, sah, fuhr).", steps: [
+    { en: "We lived in a small village.", de: "Wir wohnten in einem kleinen Dorf." },
+    { en: "We played in the playground every day.", de: "Wir spielten jeden Tag auf dem Spielplatz." },
+    { en: "Then suddenly my grandmother came.", de: "Dann kam plötzlich meine Oma.", alt: ["Plötzlich kam meine Oma."] },
+    { en: "She saw us and laughed.", de: "Sie sah uns und lachte." },
+    { en: "In the summer we went to the sea.", de: "Im Sommer fuhren wir ans Meer.", why: "fahren → fuhr in the Präteritum." },
+    { en: "I was shy and had only a few friends.", de: "Ich war schüchtern und hatte nur wenige Freunde." },
+    { en: "As a child I climbed trees and wrote a diary.", de: "Als Kind kletterte ich auf Bäume und schrieb ein Tagebuch." }
+  ] },
+  { tip: "English 'when': <b>als</b> for one time or period in the past; <b>wenn</b> for repeated times (immer wenn) or the present/future. Both send the verb to the end.", steps: [
+    { en: "When I was ten, we moved.", de: "Als ich zehn war, sind wir umgezogen.", alt: ["Als ich zehn war, zogen wir um."], why: "One period in the past: als." },
+    { en: "Whenever we visited grandma, she baked a cake.", de: "Immer wenn wir Oma besuchten, backte sie einen Kuchen.", alt: ["Wenn wir Oma besuchten, backte sie einen Kuchen.", "Immer wenn wir Oma besucht haben, hat sie einen Kuchen gebacken."], why: "Repeated in the past: wenn." },
+    { en: "When I came home, my mother was cooking.", de: "Als ich nach Hause kam, kochte meine Mutter." },
+    { en: "When I'm in Berlin, I'll call you. (du)", de: "Wenn ich in Berlin bin, rufe ich dich an." },
+    { en: "When I was a child, I was very curious.", de: "Als ich ein Kind war, war ich sehr neugierig.", alt: ["Als ich Kind war, war ich sehr neugierig."] },
+    { en: "Whenever it rained, we stayed at home.", de: "Immer wenn es regnete, blieben wir zu Hause.", alt: ["Wenn es regnete, blieben wir zu Hause."] }
+  ] },
+  { tip: "'Had done' = <b>hatte / war + Partizip II</b>. After <b>nachdem</b> use it for the earlier event: Nachdem ich gegessen <b>hatte</b>, ging ich los.", steps: [
+    { en: "I had eaten.", de: "Ich hatte gegessen." },
+    { en: "We had gone home.", de: "Wir waren nach Hause gegangen.", why: "gehen takes sein: waren gegangen." },
+    { en: "After I had eaten, I went to school.", de: "Nachdem ich gegessen hatte, ging ich in die Schule.", alt: ["Nachdem ich gegessen hatte, ging ich zur Schule."] },
+    { en: "After we had moved, I was homesick.", de: "Nachdem wir umgezogen waren, hatte ich Heimweh." },
+    { en: "After she had finished school, she travelled.", de: "Nachdem sie die Schule beendet hatte, reiste sie.", nw: "beenden = to finish" },
+    { en: "I didn't know that he had already left.", de: "Ich wusste nicht, dass er schon gegangen war.", alt: ["Ich wusste nicht, dass er schon weggegangen war."] }
+  ] }
+];
+BUILD[28] = [
+  { tip: "The passive says what happens: <b>werden</b> + Partizip II at the end. Der Patient <b>wird untersucht</b>.", steps: [
+    { en: "The patient is examined.", de: "Der Patient wird untersucht." },
+    { en: "The blood pressure is measured.", de: "Der Blutdruck wird gemessen." },
+    { en: "Here you get vaccinated.", de: "Hier wird man geimpft.", alt: ["Hier wird geimpft."], nw: "impfen = to vaccinate" },
+    { en: "The medicine is prescribed by the doctor.", de: "Das Medikament wird vom Arzt verschrieben.", alt: ["Das Medikament wird von der Ärztin verschrieben."] },
+    { en: "The patients are treated in the emergency room.", de: "Die Patienten werden in der Notaufnahme behandelt." },
+    { en: "When is the operation done?", de: "Wann wird die Operation gemacht?", alt: ["Wann wird operiert?"] }
+  ] },
+  { tip: "Passive in the past: <b>wurde</b> + Partizip II. Ich <b>wurde</b> am Knie <b>operiert</b>.", steps: [
+    { en: "I was operated on.", de: "Ich wurde operiert." },
+    { en: "I was operated on my knee.", de: "Ich wurde am Knie operiert.", nw: "das Knie = knee" },
+    { en: "The patient was treated immediately.", de: "Der Patient wurde sofort behandelt." },
+    { en: "When were you vaccinated? (du)", de: "Wann wurdest du geimpft?" },
+    { en: "We were looked after well in the hospital.", de: "Wir wurden im Krankenhaus gut versorgt.", nw: "versorgen = to look after" },
+    { en: "After the accident he was taken to hospital.", de: "Nach dem Unfall wurde er ins Krankenhaus gebracht." }
+  ] },
+  { tip: "Name who did it with <b>von + Dativ</b>: <b>vom</b> Arzt, <b>von der</b> Ärztin.", steps: [
+    { en: "I was examined by the doctor.", de: "Ich wurde von der Ärztin untersucht.", alt: ["Ich wurde vom Arzt untersucht."] },
+    { en: "The prescription is issued by the family doctor.", de: "Das Rezept wird vom Hausarzt ausgestellt.", nw: "ausstellen = to issue" },
+    { en: "The ambulance was called by a neighbour.", de: "Der Krankenwagen wurde von einem Nachbarn gerufen." },
+    { en: "The patients are looked after by the nurses.", de: "Die Patienten werden von den Pflegekräften versorgt.", why: "Dativ plural: von den Pflegekräften." },
+    { en: "The costs are paid by the health insurance.", de: "Die Kosten werden von der Krankenkasse bezahlt.", alt: ["Die Kosten werden von der Krankenkasse übernommen."], nw: "die Kosten = costs" }
+  ] }
+];
+BUILD[29] = [
+  { tip: "What didn't happen: <b>hätte / wäre</b> + Partizip II. Ich <b>hätte</b> den Zug fast <b>verpasst</b>. Choose hätte or wäre as in the Perfekt.", steps: [
+    { en: "I missed the train.", de: "Ich habe den Zug verpasst." },
+    { en: "I would have missed the train.", de: "Ich hätte den Zug verpasst." },
+    { en: "We would have arrived on time.", de: "Wir wären pünktlich angekommen.", why: "ankommen takes sein, so wären." },
+    { en: "I would have booked earlier.", de: "Ich hätte früher gebucht." },
+    { en: "That would have been cheaper.", de: "Das wäre billiger gewesen.", alt: ["Das wäre günstiger gewesen."] },
+    { en: "You should have told me that. (du)", de: "Du hättest mir das sagen sollen.", alt: ["Das hättest du mir sagen sollen."] }
+  ] },
+  { tip: "Unreal past condition: both parts with hätte / wäre. <b>Wenn wir früher losgefahren wären, hätten wir den Flug nicht verpasst.</b>", steps: [
+    { en: "If we had left earlier…", de: "Wenn wir früher losgefahren wären", alt: ["Wenn wir früher losgefahren wären …"], nw: "losfahren = to set off" },
+    { en: "If we had left earlier, we wouldn't have missed the flight.", de: "Wenn wir früher losgefahren wären, hätten wir den Flug nicht verpasst.", why: "After the wenn-clause the main clause starts with the verb: hätten wir." },
+    { en: "If I had known that, I would have booked a hire car.", de: "Wenn ich das gewusst hätte, hätte ich einen Mietwagen gebucht." },
+    { en: "If there hadn't been a traffic jam, we would have been there on time.", de: "Wenn es keinen Stau gegeben hätte, wären wir pünktlich da gewesen.", alt: ["Wenn kein Stau gewesen wäre, wären wir pünktlich gewesen."] },
+    { en: "If the flight hadn't been cancelled, we'd be in Berlin now.", de: "Wenn der Flug nicht ausgefallen wäre, wären wir jetzt in Berlin." }
+  ] },
+  { tip: "Regret: <b>Hätte ich doch …!</b> · <b>Wäre ich doch …!</b> Complaining politely: <b>Ich möchte mich über … beschweren.</b> · <b>Leider funktioniert … nicht.</b>", steps: [
+    { en: "If only I had known that!", de: "Hätte ich das bloß gewusst!", alt: ["Hätte ich das doch gewusst!"] },
+    { en: "If only we had stayed at home!", de: "Wären wir doch zu Hause geblieben!", alt: ["Wären wir bloß zu Hause geblieben!"] },
+    { en: "We should have booked earlier.", de: "Wir hätten früher buchen sollen." },
+    { en: "I'd like to complain about the room.", de: "Ich möchte mich über das Zimmer beschweren." },
+    { en: "Unfortunately the air conditioning isn't working.", de: "Leider funktioniert die Klimaanlage nicht." },
+    { en: "I'd like to cancel the booking and get my money back.", de: "Ich möchte die Reservierung stornieren und mein Geld zurückbekommen.", alt: ["Ich möchte die Buchung stornieren und mein Geld zurückbekommen."], nw: "zurückbekommen = to get back" }
+  ] }
+];
+BUILD[30] = [
+  { tip: "The Genitiv says whose or of what: <b>des</b> (der/das, noun + -s), <b>der</b> (die and plural). Der Titel <b>der</b> Zeitung, das Programm <b>des</b> Senders.", steps: [
+    { en: "the newspaper's headline", de: "die Schlagzeile der Zeitung" },
+    { en: "the channel's programme", de: "das Programm des Senders", why: "der Sender → des Senders, with -s." },
+    { en: "The government's opinion is clear.", de: "Die Meinung der Regierung ist klar." },
+    { en: "The journalist's article was published.", de: "Der Artikel des Journalisten wurde veröffentlicht.", why: "der Journalist adds -en: des Journalisten." },
+    { en: "The result of the election surprised many.", de: "Das Ergebnis der Wahl hat viele überrascht.", alt: ["Das Ergebnis der Wahl überraschte viele."] },
+    { en: "That's the source of the report.", de: "Das ist die Quelle des Berichts.", alt: ["Das ist die Quelle des Berichtes."] }
+  ] },
+  { tip: "<b>wegen</b> (because of), <b>trotz</b> (despite), <b>während</b> (during), <b>statt</b> (instead of) + Genitiv.", steps: [
+    { en: "Because of the strike, no buses are running.", de: "Wegen des Streiks fahren keine Busse.", nw: "der Streik = strike" },
+    { en: "Despite the criticism, the article appeared.", de: "Trotz der Kritik erschien der Artikel.", alt: ["Trotz der Kritik ist der Artikel erschienen."], nw: "erscheinen = to appear" },
+    { en: "During the programme the phone rang.", de: "Während der Sendung klingelte das Telefon.", alt: ["Während der Sendung hat das Telefon geklingelt."] },
+    { en: "Instead of a newspaper I read the news online.", de: "Statt einer Zeitung lese ich die Nachrichten online." },
+    { en: "Because of the bad weather, the event was cancelled.", de: "Wegen des schlechten Wetters wurde die Veranstaltung abgesagt." },
+    { en: "During the election many fake news stories were shared.", de: "Während der Wahl wurden viele Falschmeldungen geteilt." }
+  ] }
+];
+BUILD[31] = [
+  { tip: "Some masculine nouns add <b>-(e)n</b> everywhere except the nominative singular: der Kunde → den Kunde<b>n</b>, dem Kunde<b>n</b>.", steps: [
+    { en: "The customer is complaining.", de: "Der Kunde beschwert sich." },
+    { en: "I'm helping the customer.", de: "Ich helfe dem Kunden.", why: "der Kunde → dem Kunden." },
+    { en: "Do you know the student? (du)", de: "Kennst du den Studenten?" },
+    { en: "I'm asking my colleague.", de: "Ich frage meinen Kollegen." },
+    { en: "The bank gives the customer a loan.", de: "Die Bank gibt dem Kunden einen Kredit." },
+    { en: "I talked to the neighbour about the money.", de: "Ich habe mit dem Nachbarn über das Geld gesprochen." }
+  ] },
+  { tip: "Adjectives as nouns keep adjective endings: der Angestellt<b>e</b>, ein Angestellt<b>er</b>, die Angestellt<b>en</b>.", steps: [
+    { en: "She's an employee at a bank.", de: "Sie ist Angestellte bei einer Bank." },
+    { en: "He's an employee.", de: "Er ist Angestellter.", why: "Like an adjective without an article: -er." },
+    { en: "The employees are getting a bonus.", de: "Die Angestellten bekommen eine Prämie.", nw: "die Prämie = bonus" },
+    { en: "I met an acquaintance.", de: "Ich habe einen Bekannten getroffen." },
+    { en: "My relatives live in Israel.", de: "Meine Verwandten wohnen in Israel.", alt: ["Meine Verwandten leben in Israel."] },
+    { en: "A friend of mine (a woman) works as an employee in a shop.", de: "Eine Bekannte von mir arbeitet als Angestellte in einem Laden." }
+  ] }
+];
+BUILD[32] = [
+  { tip: "<b>sowohl … als auch</b> = both … and. <b>nicht nur …, sondern auch</b> = not only … but also.", steps: [
+    { en: "I speak both Hebrew and English.", de: "Ich spreche sowohl Hebräisch als auch Englisch." },
+    { en: "Both my parents and my siblings live nearby.", de: "Sowohl meine Eltern als auch meine Geschwister wohnen in der Nähe.", nw: "in der Nähe = nearby" },
+    { en: "He's not only my partner, but also my best friend.", de: "Er ist nicht nur mein Partner, sondern auch mein bester Freund." },
+    { en: "Trust is important not only in marriage, but also in friendship.", de: "Vertrauen ist nicht nur in der Ehe wichtig, sondern auch in der Freundschaft." },
+    { en: "We need both patience and understanding.", de: "Wir brauchen sowohl Geduld als auch Verständnis.", nw: "die Geduld = patience" }
+  ] },
+  { tip: "<b>entweder … oder</b> = either … or. <b>weder … noch</b> = neither … nor.", steps: [
+    { en: "Either you come along, or you stay here. (du)", de: "Entweder kommst du mit, oder du bleibst hier.", why: "entweder takes position 1: entweder kommst du." },
+    { en: "I have neither time nor desire.", de: "Ich habe weder Zeit noch Lust.", nw: "die Lust = desire, wanting to" },
+    { en: "We'll either visit my mother-in-law or my brother-in-law.", de: "Wir besuchen entweder meine Schwiegermutter oder meinen Schwager." },
+    { en: "He's neither jealous nor angry.", de: "Er ist weder eifersüchtig noch wütend." },
+    { en: "Either we find a compromise, or we separate.", de: "Entweder finden wir einen Kompromiss, oder wir trennen uns." }
+  ] }
+];
+BUILD[33] = [
+  { tip: "With a verb's fixed preposition, the preposition goes before the relative pronoun: das Buch, <b>über das</b> wir sprechen.", steps: [
+    { en: "That's the play we talked about.", de: "Das ist das Theaterstück, über das wir gesprochen haben.", nw: "das Theaterstück = play" },
+    { en: "The artist I'm interested in is exhibiting in Berlin.", de: "Der Künstler, für den ich mich interessiere, stellt in Berlin aus.", nw: "ausstellen = to exhibit" },
+    { en: "The friend I went to the opera with loved it.", de: "Die Freundin, mit der ich in die Oper gegangen bin, war begeistert.", nw: "begeistert = thrilled" },
+    { en: "The concert I was looking forward to is sold out.", de: "Das Konzert, auf das ich mich gefreut habe, ist ausverkauft." },
+    { en: "The actors I spoke with were very friendly.", de: "Die Schauspieler, mit denen ich gesprochen habe, waren sehr freundlich." }
+  ] },
+  { tip: "After <b>alles, nichts, etwas, das Beste</b> and to refer to a whole sentence, use <b>was</b>: Alles, <b>was</b> er sagt, stimmt.", steps: [
+    { en: "Everything he says is true.", de: "Alles, was er sagt, stimmt." },
+    { en: "That's the best I've ever seen.", de: "Das ist das Beste, was ich je gesehen habe." },
+    { en: "There's nothing I don't like about the film.", de: "Es gibt nichts, was mir an dem Film nicht gefällt.", alt: ["Es gibt nichts, was mir am Film nicht gefällt."] },
+    { en: "The play was sold out, which annoyed me.", de: "Das Stück war ausverkauft, was mich geärgert hat.", why: "was refers to the whole sentence." },
+    { en: "Is there anything you can recommend? (du)", de: "Gibt es etwas, was du empfehlen kannst?", alt: ["Gibt es etwas, das du empfehlen kannst?"] }
+  ] }
+];
+BUILD[34] = [
+  { tip: "Predictions: <b>werden</b> + infinitive. With <b>wohl</b> or <b>vermutlich</b> it means 'probably'.", steps: [
+    { en: "Temperatures will rise.", de: "Die Temperaturen werden steigen." },
+    { en: "We will need more energy.", de: "Wir werden mehr Energie brauchen." },
+    { en: "He's probably stuck in traffic.", de: "Er wird wohl im Stau stehen.", alt: ["Er steht vermutlich im Stau."] },
+    { en: "In ten years there will be more electric cars.", de: "In zehn Jahren wird es mehr Elektroautos geben." },
+    { en: "Many animals will probably die out.", de: "Viele Tiere werden vermutlich aussterben.", alt: ["Viele Tiere werden wahrscheinlich aussterben."] },
+    { en: "I'll throw away less and repair more.", de: "Ich werde weniger wegwerfen und mehr reparieren." }
+  ] },
+  { tip: "What must / can be done: modal + Partizip II + <b>werden</b> at the end. Die Heizung <b>muss repariert werden</b>.", steps: [
+    { en: "The heating must be repaired.", de: "Die Heizung muss repariert werden.", nw: "die Heizung = heating" },
+    { en: "Rubbish must be separated.", de: "Müll muss getrennt werden." },
+    { en: "Plastic can be recycled.", de: "Plastik kann recycelt werden." },
+    { en: "Emissions should be reduced.", de: "Die Abgase sollten reduziert werden.", alt: ["Abgase sollten reduziert werden.", "Die Abgase sollen reduziert werden."] },
+    { en: "More trees must be planted.", de: "Es müssen mehr Bäume gepflanzt werden.", alt: ["Mehr Bäume müssen gepflanzt werden."] },
+    { en: "Packaging could be avoided.", de: "Verpackungen könnten vermieden werden.", alt: ["Verpackung könnte vermieden werden."] }
+  ] }
+];
+BUILD[35] = [
+  { tip: "<b>obwohl</b> (although) sends the verb to the end. <b>trotzdem</b> (nevertheless) takes position 1 in the second sentence.", steps: [
+    { en: "Although I have little time, I volunteer.", de: "Obwohl ich wenig Zeit habe, arbeite ich ehrenamtlich.", why: "After the obwohl-clause the verb comes first: arbeite ich." },
+    { en: "I have little time. I volunteer nevertheless.", de: "Ich habe wenig Zeit. Trotzdem arbeite ich ehrenamtlich.", alt: ["Ich habe wenig Zeit, trotzdem arbeite ich ehrenamtlich."] },
+    { en: "I'm going to vote, although I'm not happy with any party.", de: "Ich gehe wählen, obwohl ich mit keiner Partei zufrieden bin." },
+    { en: "Although she's new here, she gets involved in a club.", de: "Obwohl sie neu hier ist, engagiert sie sich in einem Verein." },
+    { en: "The law is controversial. Parliament passed it nevertheless.", de: "Das Gesetz ist umstritten. Trotzdem hat das Parlament es beschlossen.", nw: "umstritten = controversial, beschließen = to pass (a law)" }
+  ] },
+  { tip: "<b>bevor, nachdem, seitdem, bis, während</b> all send the verb to the end of their clause.", steps: [
+    { en: "Before you hand in the application, copy all documents. (du)", de: "Bevor du den Antrag abgibst, kopier alle Dokumente.", alt: ["Bevor du den Antrag abgibst, kopiere alle Dokumente."], nw: "abgeben = to hand in" },
+    { en: "After we had voted, we went to a café.", de: "Nachdem wir gewählt hatten, sind wir ins Café gegangen.", alt: ["Nachdem wir gewählt hatten, gingen wir ins Café."] },
+    { en: "Since I've been living here, I've felt at home.", de: "Seitdem ich hier wohne, fühle ich mich zu Hause.", alt: ["Seit ich hier wohne, fühle ich mich zu Hause.", "Seitdem ich hier lebe, fühle ich mich zu Hause."] },
+    { en: "Wait until the results come. (du)", de: "Warte, bis die Ergebnisse kommen.", alt: ["Wart, bis die Ergebnisse kommen."] },
+    { en: "While the politicians were discussing, people demonstrated outside.", de: "Während die Politiker diskutierten, demonstrierten die Leute draußen.", nw: "draußen = outside" }
+  ] },
+  { tip: "<b>je</b> + comparative (verb at the end), <b>desto</b> + comparative (verb right after): Je länger ich hier lebe, desto besser verstehe ich …", steps: [
+    { en: "The longer I live here, the better I understand the society.", de: "Je länger ich hier lebe, desto besser verstehe ich die Gesellschaft." },
+    { en: "The more I speak, the more confident I become.", de: "Je mehr ich spreche, desto sicherer werde ich.", nw: "sicher = confident, sure" },
+    { en: "The more people vote, the better.", de: "Je mehr Menschen wählen, desto besser." },
+    { en: "The earlier you apply, the faster you get an answer. (du)", de: "Je früher du dich bewirbst, desto schneller bekommst du eine Antwort." },
+    { en: "The more I learn about the history, the more interesting it becomes.", de: "Je mehr ich über die Geschichte lerne, desto interessanter wird sie." }
+  ] }
+];
+BUILD[36] = [
+  { tip: "Participles can describe a noun with normal adjective endings: die steigend<b>en</b> Preise (rising), das reparier<b>te</b> Fahrrad (repaired).", steps: [
+    { en: "the rising prices", de: "die steigenden Preise" },
+    { en: "the finished project", de: "das abgeschlossene Projekt", alt: ["das fertige Projekt"], nw: "abschließen = to finish" },
+    { en: "The rising prices worry many employees.", de: "Die steigenden Preise beunruhigen viele Angestellte.", nw: "beunruhigen = to worry" },
+    { en: "I sent the finished report to the boss.", de: "Ich habe den fertigen Bericht an den Chef geschickt.", alt: ["Ich habe den abgeschlossenen Bericht an den Chef geschickt."] },
+    { en: "The motivated team worked all night.", de: "Das motivierte Team hat die ganze Nacht gearbeitet.", alt: ["Das motivierte Team arbeitete die ganze Nacht."] },
+    { en: "The agreed deadline is Friday.", de: "Die vereinbarte Frist ist Freitag.", alt: ["Die vereinbarte Frist ist am Freitag."] }
+  ] },
+  { tip: "Having something done: <b>lassen</b> + infinitive at the end. Ich <b>lasse</b> mein Fahrrad <b>reparieren</b>.", steps: [
+    { en: "I'm having my bike repaired.", de: "Ich lasse mein Fahrrad reparieren." },
+    { en: "She's having her hair cut.", de: "Sie lässt sich die Haare schneiden." },
+    { en: "I had my car repaired.", de: "Ich habe mein Auto reparieren lassen.", why: "Perfekt with lassen: two infinitives at the end." },
+    { en: "We're having the documents translated.", de: "Wir lassen die Dokumente übersetzen.", nw: "übersetzen = to translate" },
+    { en: "The boss has the report checked.", de: "Der Chef lässt den Bericht prüfen.", alt: ["Die Chefin lässt den Bericht prüfen."], nw: "prüfen = to check" }
+  ] },
+  { tip: "<b>Meiner Meinung nach</b> takes position 1 (verb next). <b>Ich bin der Meinung, dass …</b> sends the verb to the end.", steps: [
+    { en: "In my opinion, home office has many advantages.", de: "Meiner Meinung nach hat Homeoffice viele Vorteile.", why: "Meiner Meinung nach counts as position 1, so the verb comes next." },
+    { en: "I'm of the opinion that teamwork is important.", de: "Ich bin der Meinung, dass Teamarbeit wichtig ist." },
+    { en: "I agree with you. (du)", de: "Ich stimme dir zu.", alt: ["Da stimme ich dir zu."] },
+    { en: "I see it differently.", de: "Ich sehe das anders.", alt: ["Das sehe ich anders."] },
+    { en: "In my opinion, flexible working hours make employees more efficient.", de: "Meiner Meinung nach machen flexible Arbeitszeiten die Angestellten effizienter." },
+    { en: "I don't think that we can reach the goal by Friday.", de: "Ich glaube nicht, dass wir das Ziel bis Freitag erreichen können." }
+  ] }
+];
+
+// "Bauen" chains for B2, written for this app (original sentences). Format: see a1.js.
+BUILD[37] = [
+  { tip: "Reported speech (Konjunktiv I): stem + <b>-e</b>. Er sagt, er <b>habe</b> keine Zeit. sein → <b>sei</b>.", steps: [
+    { en: "He says he has no time.", de: "Er sagt, er habe keine Zeit.", alt: ["Er sagt, dass er keine Zeit habe."] },
+    { en: "She says she is ill.", de: "Sie sagt, sie sei krank.", alt: ["Sie sagt, dass sie krank sei."] },
+    { en: "The boss claims the project is finished.", de: "Der Chef behauptet, das Projekt sei abgeschlossen.", alt: ["Die Chefin behauptet, das Projekt sei abgeschlossen.", "Der Chef behauptet, das Projekt sei fertig."] },
+    { en: "He mentioned that he would come later.", de: "Er erwähnte, er komme später.", alt: ["Er hat erwähnt, er komme später.", "Er erwähnte, dass er später komme."] },
+    { en: "She says she didn't understand the email.", de: "Sie sagt, sie habe die E-Mail nicht verstanden.", why: "Past in reported speech: habe + Partizip II." },
+    { en: "The spokesman stressed that there had been a misunderstanding.", de: "Der Sprecher betonte, es habe ein Missverständnis gegeben.", nw: "der Sprecher = spokesman" }
+  ] },
+  { tip: "When Konjunktiv I looks like the normal form (sie haben, ich komme), use Konjunktiv II or <b>würde</b>: Sie sagen, sie <b>hätten</b> keine Zeit.", steps: [
+    { en: "They say they have no time.", de: "Sie sagen, sie hätten keine Zeit.", why: "sie haben would look like the indicative, so hätten." },
+    { en: "My colleagues say they knew nothing about it.", de: "Meine Kollegen sagen, sie hätten nichts davon gewusst." },
+    { en: "The customers claim they waited for an hour.", de: "Die Kunden behaupten, sie hätten eine Stunde gewartet." },
+    { en: "They said they would come tomorrow.", de: "Sie sagten, sie würden morgen kommen.", alt: ["Sie haben gesagt, sie würden morgen kommen."] },
+    { en: "I told him I had already sent the email.", de: "Ich habe ihm gesagt, ich hätte die E-Mail schon geschickt.", alt: ["Ich sagte ihm, ich hätte die E-Mail schon geschickt."] }
+  ] },
+  { tip: "Reported questions: <b>ob</b> or the W-word, verb at the end. Requests: <b>sollen</b>. Er fragt, ob ich Zeit <b>habe</b>. Sie sagt, ich <b>solle</b> warten.", steps: [
+    { en: "She asks whether I have time.", de: "Sie fragt, ob ich Zeit habe." },
+    { en: "He asks when the meeting starts.", de: "Er fragt, wann das Meeting beginne.", alt: ["Er fragt, wann das Meeting beginnt.", "Er fragt, wann die Besprechung beginnt."] },
+    { en: "The manager asked why we hadn't called back.", de: "Der Manager fragte, warum wir nicht zurückgerufen hätten.", alt: ["Die Managerin fragte, warum wir nicht zurückgerufen hätten."] },
+    { en: "She says I should wait.", de: "Sie sagt, ich solle warten.", alt: ["Sie sagt, ich soll warten."] },
+    { en: "He asked me not to interrupt him.", de: "Er bat mich, ihn nicht zu unterbrechen.", alt: ["Er hat mich gebeten, ihn nicht zu unterbrechen."], nw: "bitten (bat) = to ask (a favour)" }
+  ] }
+];
+BUILD[38] = [
+  { tip: "Formal style turns a clause into <b>preposition + noun</b>: weil er krank war → <b>wegen seiner Krankheit</b>.", steps: [
+    { en: "Because he was ill, the meeting was postponed.", de: "Weil er krank war, wurde das Meeting verschoben.", alt: ["Weil er krank war, wurde die Besprechung verschoben."] },
+    { en: "Due to his illness, the meeting was postponed.", de: "Wegen seiner Krankheit wurde das Meeting verschoben.", alt: ["Wegen seiner Krankheit wurde die Besprechung verschoben.", "Aufgrund seiner Krankheit wurde das Meeting verschoben."] },
+    { en: "After the negotiations were finished, we celebrated.", de: "Nachdem die Verhandlungen abgeschlossen waren, haben wir gefeiert.", alt: ["Nachdem die Verhandlungen abgeschlossen waren, feierten wir."] },
+    { en: "After the end of the negotiations, we celebrated.", de: "Nach dem Abschluss der Verhandlungen haben wir gefeiert.", alt: ["Nach dem Ende der Verhandlungen haben wir gefeiert.", "Nach Abschluss der Verhandlungen feierten wir."] },
+    { en: "Before the decision is made, we need more information.", de: "Vor der Entscheidung brauchen wir mehr Informationen." },
+    { en: "In case of questions, I'm available.", de: "Bei Fragen stehe ich zur Verfügung.", alt: ["Bei Fragen stehe ich Ihnen zur Verfügung."] }
+  ] },
+  { tip: "Verb → noun (<b>-ung</b>, or the infinitive as das …), subject → <b>Genitiv</b>: Der Chef entscheidet → die Entscheidung <b>des Chefs</b>.", steps: [
+    { en: "the boss's decision", de: "die Entscheidung des Chefs", alt: ["die Entscheidung der Chefin"] },
+    { en: "the company's development", de: "die Entwicklung der Firma", alt: ["die Entwicklung des Unternehmens"] },
+    { en: "The boss's decision surprised everyone.", de: "Die Entscheidung des Chefs hat alle überrascht.", alt: ["Die Entscheidung des Chefs überraschte alle."] },
+    { en: "The negotiation of the salary took two hours.", de: "Die Verhandlung des Gehalts hat zwei Stunden gedauert.", alt: ["Die Verhandlung über das Gehalt dauerte zwei Stunden."], nw: "dauern = to take (time)" },
+    { en: "The quick promotion of my colleague was deserved.", de: "Die schnelle Beförderung meiner Kollegin war verdient.", alt: ["Die schnelle Beförderung meines Kollegen war verdient."], nw: "verdient = deserved" }
+  ] },
+  { tip: "Formal noun + verb pairs: <b>eine Entscheidung treffen</b> (decide), <b>Kritik üben an</b> (criticise), <b>zur Verfügung stehen</b> (be available), <b>Bescheid geben</b> (let know).", steps: [
+    { en: "We have to make a decision.", de: "Wir müssen eine Entscheidung treffen." },
+    { en: "Please let me know by Friday. (Sie)", de: "Bitte geben Sie mir bis Freitag Bescheid.", alt: ["Geben Sie mir bitte bis Freitag Bescheid."] },
+    { en: "The works council criticised the plan.", de: "Der Betriebsrat hat Kritik an dem Plan geübt.", alt: ["Der Betriebsrat übte Kritik am Plan.", "Der Betriebsrat hat Kritik am Plan geübt."] },
+    { en: "Experience plays an important role.", de: "Erfahrung spielt eine wichtige Rolle.", alt: ["Die Erfahrung spielt eine wichtige Rolle."] },
+    { en: "A pay rise is out of the question at the moment.", de: "Eine Gehaltserhöhung kommt im Moment nicht infrage.", alt: ["Eine Gehaltserhöhung kommt zurzeit nicht infrage."] },
+    { en: "We want to bring the project to a close this month.", de: "Wir wollen das Projekt diesen Monat zum Abschluss bringen.", alt: ["Wir möchten das Projekt diesen Monat zum Abschluss bringen."] }
+  ] }
+];
+BUILD[39] = [
+  { tip: "<b>sich lassen</b> + infinitive = can be done: Das Problem <b>lässt sich lösen</b>.", steps: [
+    { en: "The problem can be solved.", de: "Das Problem lässt sich lösen.", alt: ["Das Problem kann gelöst werden."] },
+    { en: "That can't be proven.", de: "Das lässt sich nicht beweisen.", alt: ["Das kann nicht bewiesen werden."] },
+    { en: "The data can be evaluated easily.", de: "Die Daten lassen sich leicht auswerten.", alt: ["Die Daten können leicht ausgewertet werden."] },
+    { en: "The device can be programmed.", de: "Das Gerät lässt sich programmieren." },
+    { en: "Not everything can be explained with algorithms.", de: "Nicht alles lässt sich mit Algorithmen erklären." }
+  ] },
+  { tip: "Verb stem + <b>-bar</b> (sometimes -lich) = can be …-ed: mach<b>bar</b>, les<b>bar</b>, un<b>vorhersehbar</b>.", steps: [
+    { en: "The plan is feasible.", de: "Der Plan ist machbar." },
+    { en: "The handwriting is unreadable.", de: "Die Schrift ist unleserlich.", alt: ["Die Schrift ist nicht lesbar.", "Die Handschrift ist unleserlich."] },
+    { en: "The results are not verifiable.", de: "Die Ergebnisse sind nicht nachweisbar.", alt: ["Die Ergebnisse sind nicht überprüfbar."] },
+    { en: "The effects of AI are unforeseeable.", de: "Die Folgen der künstlichen Intelligenz sind unvorhersehbar.", alt: ["Die Auswirkungen der künstlichen Intelligenz sind unvorhersehbar."] },
+    { en: "This mistake was avoidable.", de: "Dieser Fehler war vermeidbar." }
+  ] },
+  { tip: "<b>sein + zu</b> + infinitive = can be done or must be done: Der Fehler <b>ist</b> leicht <b>zu finden</b>.", steps: [
+    { en: "The mistake is easy to find.", de: "Der Fehler ist leicht zu finden." },
+    { en: "The forms are to be handed in by Friday.", de: "Die Formulare sind bis Freitag abzugeben.", why: "Separable verb: zu goes in the middle, abzugeben." },
+    { en: "The hypothesis is hard to prove.", de: "Die Hypothese ist schwer zu beweisen." },
+    { en: "The instructions are to be followed exactly.", de: "Die Anweisungen sind genau zu befolgen.", nw: "befolgen = to follow (rules)" },
+    { en: "This development can't be stopped.", de: "Diese Entwicklung ist nicht aufzuhalten.", nw: "aufhalten = to stop, hold up" }
+  ] }
+];
+BUILD[40] = [
+  { tip: "Partizip I = infinitive + <b>-d</b>, with adjective endings: die steigen<b>den</b> Zahlen (that are rising).", steps: [
+    { en: "the rising number", de: "die steigende Zahl" },
+    { en: "the rising numbers of sick days", de: "die steigenden Zahlen der Krankheitstage", nw: "der Krankheitstag = sick day" },
+    { en: "a stressful job", de: "ein belastender Job", alt: ["eine belastende Arbeit"] },
+    { en: "The increasing pressure makes many people ill.", de: "Der zunehmende Druck macht viele Menschen krank.", nw: "zunehmen = to increase, der Druck = pressure" },
+    { en: "I'm looking for a relaxing activity.", de: "Ich suche eine entspannende Beschäftigung.", alt: ["Ich suche eine entspannende Aktivität."] }
+  ] },
+  { tip: "Partizip II before a noun = done / -ed, with adjective endings: die veröffentlicht<b>e</b> Studie, erschöpft<b>e</b> Patienten.", steps: [
+    { en: "the published study", de: "die veröffentlichte Studie" },
+    { en: "exhausted patients", de: "erschöpfte Patienten" },
+    { en: "The recently published study shows clear results.", de: "Die kürzlich veröffentlichte Studie zeigt klare Ergebnisse.", nw: "kürzlich = recently" },
+    { en: "Overwhelmed employees need support.", de: "Überforderte Angestellte brauchen Unterstützung.", alt: ["Überforderte Mitarbeiter brauchen Unterstützung."], nw: "die Unterstützung = support" },
+    { en: "The therapy recommended by the doctor helped me.", de: "Die vom Arzt empfohlene Therapie hat mir geholfen.", alt: ["Die von der Ärztin empfohlene Therapie hat mir geholfen."] }
+  ] },
+  { tip: "A whole relative clause can go between article and noun: die Zahl, die seit Jahren steigt → <b>die seit Jahren steigende Zahl</b>.", steps: [
+    { en: "the number that has been rising for years", de: "die seit Jahren steigende Zahl" },
+    { en: "people who suffer from sleep disorders", de: "an Schlafstörungen leidende Menschen", alt: ["die an Schlafstörungen leidenden Menschen"], nw: "leiden an = to suffer from" },
+    { en: "The number of burn-out cases, which has been rising for years, worries experts.", de: "Die seit Jahren steigende Zahl der Burn-out-Fälle beunruhigt Experten.", alt: ["Die seit Jahren steigende Zahl von Burn-out-Fällen beunruhigt Experten."] },
+    { en: "The study, published last year, examined 2000 people.", de: "Die im letzten Jahr veröffentlichte Studie hat 2000 Menschen untersucht.", alt: ["Die letztes Jahr veröffentlichte Studie untersuchte 2000 Menschen.", "Die im letzten Jahr veröffentlichte Studie untersuchte 2000 Menschen."] },
+    { en: "Doctors recommend a balance that is adapted to the person.", de: "Ärzte empfehlen einen an die Person angepassten Ausgleich.", nw: "anpassen an = to adapt to" }
+  ] }
+];
+BUILD[41] = [
+  { tip: "<b>indem</b> = by …-ing (how). <b>sodass</b> / <b>so … dass</b> = so that (result). Both send the verb to the end.", steps: [
+    { en: "You learn a language best by speaking every day.", de: "Man lernt eine Sprache am besten, indem man jeden Tag spricht." },
+    { en: "I improved my German by watching German series.", de: "Ich habe mein Deutsch verbessert, indem ich deutsche Serien geschaut habe.", alt: ["Ich habe mein Deutsch verbessert, indem ich deutsche Serien gesehen habe."], nw: "verbessern = to improve" },
+    { en: "She feels at home by keeping her traditions.", de: "Sie fühlt sich zu Hause, indem sie ihre Traditionen pflegt.", nw: "pflegen = to keep up, cherish" },
+    { en: "The culture shock was so great that I wanted to go back.", de: "Der Kulturschock war so groß, dass ich zurückwollte.", alt: ["Der Kulturschock war so groß, dass ich zurückgehen wollte."] },
+    { en: "He speaks without an accent, so that nobody notices it.", de: "Er spricht ohne Akzent, sodass es niemand merkt.", nw: "merken = to notice" }
+  ] },
+  { tip: "Something that doesn't happen: same subject → <b>ohne … zu</b>; different subjects → <b>ohne dass</b> + verb at the end.", steps: [
+    { en: "He emigrated without speaking the language.", de: "Er ist ausgewandert, ohne die Sprache zu können.", alt: ["Er ist ausgewandert, ohne die Sprache zu sprechen.", "Er wanderte aus, ohne die Sprache zu können."] },
+    { en: "She left without saying goodbye.", de: "Sie ist gegangen, ohne sich zu verabschieden.", nw: "sich verabschieden = to say goodbye" },
+    { en: "She moved away without her family knowing.", de: "Sie ist weggezogen, ohne dass ihre Familie es wusste.", alt: ["Sie zog weg, ohne dass ihre Familie es wusste."] },
+    { en: "I signed the contract without reading it.", de: "Ich habe den Vertrag unterschrieben, ohne ihn zu lesen.", alt: ["Ich habe den Vertrag unterschrieben, ohne ihn gelesen zu haben."] },
+    { en: "We integrated without anyone helping us.", de: "Wir haben uns integriert, ohne dass uns jemand geholfen hat.", alt: ["Wir haben uns integriert, ohne dass jemand uns geholfen hat."] }
+  ] },
+  { tip: "Instead of: same subject → <b>(an)statt … zu</b>; different subjects → <b>(an)statt dass</b>.", steps: [
+    { en: "Instead of learning German, he speaks English everywhere.", de: "Statt Deutsch zu lernen, spricht er überall Englisch.", alt: ["Anstatt Deutsch zu lernen, spricht er überall Englisch."] },
+    { en: "Instead of complaining, we should do something.", de: "Statt uns zu beschweren, sollten wir etwas tun.", alt: ["Anstatt uns zu beschweren, sollten wir etwas tun."] },
+    { en: "Instead of the authority helping, it sends forms.", de: "Anstatt dass die Behörde hilft, schickt sie Formulare.", alt: ["Statt dass die Behörde hilft, schickt sie Formulare."] },
+    { en: "I phone my mother instead of writing to her.", de: "Ich rufe meine Mutter an, statt ihr zu schreiben.", alt: ["Ich rufe meine Mutter an, anstatt ihr zu schreiben."] },
+    { en: "Instead of judging others, we should get to know them.", de: "Statt andere zu verurteilen, sollten wir sie kennenlernen.", alt: ["Anstatt andere zu verurteilen, sollten wir sie kennenlernen."], nw: "verurteilen = to judge, condemn" }
+  ] }
+];
+BUILD[42] = [
+  { tip: "<b>sollen</b> = people say (a claim). <b>wollen</b> = the subject claims it: Er <b>will</b> alles gewusst haben.", steps: [
+    { en: "The Finnish school system is said to be very good.", de: "Das finnische Schulsystem soll sehr gut sein." },
+    { en: "The exam is said to be very difficult.", de: "Die Prüfung soll sehr schwierig sein." },
+    { en: "He claims to speak five languages.", de: "Er will fünf Sprachen sprechen.", alt: ["Er will fünf Sprachen können."] },
+    { en: "She claims to have studied all night.", de: "Sie will die ganze Nacht gelernt haben." },
+    { en: "The teacher is said to have been very strict.", de: "Der Lehrer soll sehr streng gewesen sein.", alt: ["Die Lehrerin soll sehr streng gewesen sein."] }
+  ] },
+  { tip: "How sure: <b>muss</b> (almost certain), <b>dürfte</b> (quite likely), <b>kann / könnte</b> (possible), <b>kann nicht</b> (impossible).", steps: [
+    { en: "The light is on. She must be at home.", de: "Das Licht ist an. Sie muss zu Hause sein." },
+    { en: "The exam is likely to be hard.", de: "Die Prüfung dürfte schwer sein." },
+    { en: "He could still be in the library.", de: "Er könnte noch in der Bibliothek sein.", nw: "die Bibliothek = library" },
+    { en: "That can't be true.", de: "Das kann nicht stimmen.", alt: ["Das kann nicht wahr sein."] },
+    { en: "She must have forgotten the appointment.", de: "Sie muss den Termin vergessen haben." },
+    { en: "The course might be fully booked already.", de: "Der Kurs könnte schon ausgebucht sein.", alt: ["Der Kurs dürfte schon ausgebucht sein."], nw: "ausgebucht = fully booked" }
+  ] },
+  { tip: "Guessing about the past: <b>werden + Partizip II + haben/sein</b>, often with <b>wohl</b>: Er <b>wird</b> den Bus <b>verpasst haben</b>.", steps: [
+    { en: "He has probably missed the bus.", de: "Er wird wohl den Bus verpasst haben.", alt: ["Er wird den Bus wohl verpasst haben.", "Er wird den Bus verpasst haben."] },
+    { en: "She has probably passed the exam.", de: "Sie wird die Prüfung wohl bestanden haben.", alt: ["Sie wird wohl die Prüfung bestanden haben."] },
+    { en: "They've probably already gone home.", de: "Sie werden wohl schon nach Hause gegangen sein.", why: "gehen takes sein: gegangen sein." },
+    { en: "By then I'll have finished my training.", de: "Bis dahin werde ich meine Ausbildung abgeschlossen haben." },
+    { en: "He'll surely have received the scholarship.", de: "Er wird das Stipendium sicher bekommen haben.", alt: ["Er wird sicher das Stipendium bekommen haben."] }
+  ] }
+];
+BUILD[43] = [
+  { tip: "Admitting a point, then holding your view: <b>zwar …, aber</b> · <b>Obwohl …</b> · <b>…, dennoch</b> · <b>Selbst wenn …</b>", steps: [
+    { en: "Electric cars are expensive, but they're better for the climate.", de: "Elektroautos sind zwar teuer, aber sie sind besser für das Klima.", alt: ["Elektroautos sind zwar teuer, aber besser für das Klima.", "Zwar sind Elektroautos teuer, aber sie sind besser für das Klima."] },
+    { en: "Although the measures are controversial, they're necessary.", de: "Obwohl die Maßnahmen umstritten sind, sind sie notwendig.", nw: "notwendig = necessary" },
+    { en: "Resources are scarce. Nevertheless we waste a lot.", de: "Die Ressourcen sind knapp. Dennoch verschwenden wir viel.", alt: ["Die Ressourcen sind knapp, dennoch verschwenden wir viel."] },
+    { en: "Even if it costs money, we have to act.", de: "Selbst wenn es Geld kostet, müssen wir handeln.", nw: "handeln = to act" },
+    { en: "The effects are noticeable, but many still doubt it.", de: "Die Folgen sind zwar spürbar, aber viele zweifeln immer noch daran.", alt: ["Die Folgen sind spürbar, dennoch zweifeln viele noch daran."], nw: "zweifeln an = to doubt" }
+  ] },
+  { tip: "An argument: thesis (<b>Ich bin der Ansicht, dass …</b>), reasons (<b>Dafür spricht, dass …</b>), counter-argument (<b>Dagegen spricht …</b>), conclusion (<b>Alles in allem …</b>).", steps: [
+    { en: "I'm of the view that we need the energy transition.", de: "Ich bin der Ansicht, dass wir die Energiewende brauchen." },
+    { en: "In favour of it is the fact that sun and wind are free.", de: "Dafür spricht, dass Sonne und Wind kostenlos sind." },
+    { en: "An important argument is that emissions will fall.", de: "Ein wichtiges Argument ist, dass die Emissionen sinken werden." },
+    { en: "Against it is the fact that the costs are high.", de: "Dagegen spricht, dass die Kosten hoch sind." },
+    { en: "All in all, the advantages outweigh the disadvantages.", de: "Alles in allem überwiegen die Vorteile.", alt: ["Alles in allem überwiegen die Vorteile die Nachteile."], nw: "überwiegen = to outweigh" }
+  ] }
+];
+BUILD[44] = [
+  { tip: "Modal particles add attitude: <b>doch</b> (come on / you know), <b>mal</b> (softens), <b>ja</b> (as we know), <b>eben / halt</b> (that's just how it is).", steps: [
+    { en: "Just have a look at this. (du)", de: "Schau dir das mal an.", alt: ["Schau dir das doch mal an."] },
+    { en: "Come along, then! (du)", de: "Komm doch mit!" },
+    { en: "That's obviously fake news.", de: "Das ist ja eine Falschmeldung.", alt: ["Das ist doch eine Falschmeldung."] },
+    { en: "That's just how social media is.", de: "So sind die sozialen Medien halt.", alt: ["So sind die sozialen Medien eben.", "Die sozialen Medien sind eben so."] },
+    { en: "Check the source first, will you. (du)", de: "Überprüf doch erst mal die Quelle.", alt: ["Überprüfe doch erst mal die Quelle.", "Überprüf mal zuerst die Quelle."] },
+    { en: "He's probably right.", de: "Er hat wohl recht.", alt: ["Er wird wohl recht haben."] }
+  ] },
+  { tip: "To stress something, move it to <b>position 1</b>; the verb stays second: <b>Diese Quelle</b> habe ich nicht überprüft.", steps: [
+    { en: "I didn't check this source.", de: "Ich habe diese Quelle nicht überprüft." },
+    { en: "This source I didn't check.", de: "Diese Quelle habe ich nicht überprüft.", why: "Diese Quelle takes position 1, the verb stays second." },
+    { en: "I find the article one-sided.", de: "Ich finde den Artikel einseitig." },
+    { en: "The article I find one-sided, not the video.", de: "Den Artikel finde ich einseitig, nicht das Video." },
+    { en: "Of all people, my uncle believes conspiracy theories.", de: "Ausgerechnet mein Onkel glaubt an Verschwörungstheorien.", nw: "der Onkel = uncle" },
+    { en: "Even the newspaper reported it.", de: "Sogar die Zeitung hat darüber berichtet.", alt: ["Sogar die Zeitung berichtete darüber."] }
+  ] }
+];
+BUILD[45] = [
+  { tip: "Business German loves noun + verb pairs: <b>einen Antrag stellen</b>, <b>in Anspruch nehmen</b>, <b>zur Verfügung stellen</b>, <b>in Kauf nehmen</b>.", steps: [
+    { en: "We submitted an application for funding.", de: "Wir haben einen Antrag auf Förderung gestellt.", nw: "die Förderung = funding" },
+    { en: "The company provides the capital.", de: "Die Firma stellt das Kapital zur Verfügung.", alt: ["Das Unternehmen stellt das Kapital zur Verfügung."] },
+    { en: "The investor accepts the risk.", de: "Der Investor nimmt das Risiko in Kauf.", nw: "das Risiko = risk" },
+    { en: "Many founders make use of advice.", de: "Viele Gründer nehmen eine Beratung in Anspruch.", nw: "die Beratung = advice, consulting" },
+    { en: "The customers expressed their dissatisfaction.", de: "Die Kunden haben ihre Unzufriedenheit zum Ausdruck gebracht.", alt: ["Die Kunden brachten ihre Unzufriedenheit zum Ausdruck."] },
+    { en: "The inflation calls the strategy into question.", de: "Die Inflation stellt die Strategie in Frage.", alt: ["Die Inflation stellt die Strategie infrage."] }
+  ] },
+  { tip: "Pairs: someone does it (<b>stellen, bringen, setzen</b>) vs. it happens (<b>stehen, kommen</b>): etwas zur Diskussion stellen → zur Diskussion stehen.", steps: [
+    { en: "The board puts the plan up for discussion.", de: "Der Vorstand stellt den Plan zur Diskussion." },
+    { en: "The plan is up for discussion.", de: "Der Plan steht zur Diskussion." },
+    { en: "The founders set the project in motion.", de: "Die Gründer setzen das Projekt in Gang.", alt: ["Die Gründer haben das Projekt in Gang gesetzt."] },
+    { en: "The project is getting going.", de: "Das Projekt kommt in Gang." },
+    { en: "We are bringing the product onto the market.", de: "Wir bringen das Produkt auf den Markt." },
+    { en: "The product comes onto the market next year.", de: "Das Produkt kommt nächstes Jahr auf den Markt." }
+  ] }
+];
+BUILD[46] = [
+  { tip: "Formal prepositions with the Genitiv: <b>aufgrund</b> (due to), <b>anlässlich</b> (on the occasion of), <b>innerhalb</b> (within), <b>mithilfe</b> (with the help of).", steps: [
+    { en: "Due to the bad weather, the concert was cancelled.", de: "Aufgrund des schlechten Wetters wurde das Konzert abgesagt." },
+    { en: "On the occasion of the anniversary there's an exhibition.", de: "Anlässlich des Jubiläums gibt es eine Ausstellung." },
+    { en: "Within a week, all tickets were sold.", de: "Innerhalb einer Woche waren alle Karten verkauft.", alt: ["Innerhalb einer Woche wurden alle Karten verkauft."] },
+    { en: "With the help of the city, the museum was renovated.", de: "Mithilfe der Stadt wurde das Museum renoviert.", nw: "renovieren = to renovate" },
+    { en: "Outside the city there's a famous sculpture.", de: "Außerhalb der Stadt gibt es eine berühmte Skulptur.", nw: "berühmt = famous" }
+  ] },
+  { tip: "<b>wer</b> = whoever; <b>was</b> = whatever. The main clause can pick it up: <b>Wer</b> Kunst liebt, <b>der</b> sollte …", steps: [
+    { en: "Whoever comes late has to wait.", de: "Wer zu spät kommt, muss warten.", alt: ["Wer zu spät kommt, der muss warten."] },
+    { en: "Whoever loves art should visit this museum.", de: "Wer Kunst liebt, sollte dieses Museum besuchen.", alt: ["Wer Kunst liebt, der sollte dieses Museum besuchen."] },
+    { en: "Whoever has questions can turn to the information desk.", de: "Wer Fragen hat, kann sich an die Information wenden.", nw: "sich wenden an = to turn to" },
+    { en: "What the critic wrote surprised me.", de: "Was der Kritiker geschrieben hat, hat mich überrascht.", alt: ["Was der Kritiker schrieb, überraschte mich."] },
+    { en: "Whoever has seen this production won't forget it.", de: "Wer diese Inszenierung gesehen hat, vergisst sie nicht.", alt: ["Wer diese Inszenierung gesehen hat, wird sie nicht vergessen."] }
+  ] }
+];
+BUILD[47] = [
+  { tip: "Things that didn't happen: <b>hätte / wäre + Partizip II</b>. Wenn ich es gewusst <b>hätte</b>, <b>hätte</b> ich dir geholfen.", steps: [
+    { en: "I didn't know it.", de: "Ich wusste es nicht." },
+    { en: "If I had known it, I would have helped you. (du)", de: "Wenn ich es gewusst hätte, hätte ich dir geholfen." },
+    { en: "If you had been honest, we wouldn't have argued. (du)", de: "Wenn du ehrlich gewesen wärst, hätten wir uns nicht gestritten." },
+    { en: "Without your help I would have given up. (du)", de: "Ohne deine Hilfe hätte ich aufgegeben.", nw: "aufgeben = to give up" },
+    { en: "I regret that I didn't have the courage.", de: "Ich bereue, dass ich den Mut nicht hatte.", alt: ["Ich bereue, dass ich nicht den Mut hatte."] }
+  ] },
+  { tip: "With a modal verb: <b>hätte + infinitive + modal infinitive</b>, no Partizip II: Ich hätte früher anrufen <b>sollen</b>.", steps: [
+    { en: "I should have called earlier.", de: "Ich hätte früher anrufen sollen." },
+    { en: "You could have told me. (du)", de: "Du hättest es mir sagen können.", alt: ["Das hättest du mir sagen können."] },
+    { en: "We should have been more tolerant.", de: "Wir hätten toleranter sein sollen." },
+    { en: "She wouldn't have had to apologise.", de: "Sie hätte sich nicht entschuldigen müssen." },
+    { en: "I would have liked to take the opportunity.", de: "Ich hätte die Gelegenheit gern genutzt.", nw: "nutzen = to use, take (a chance)" },
+    { en: "He accuses me of not having helped him.", de: "Er wirft mir vor, dass ich ihm nicht geholfen habe.", alt: ["Er wirft mir vor, ihm nicht geholfen zu haben."] }
+  ] },
+  { tip: "<b>als ob / als wenn</b> + Konjunktiv II, verb at the end: Er redet, <b>als ob</b> er der Chef <b>wäre</b>.", steps: [
+    { en: "He talks as if he were the boss.", de: "Er redet, als ob er der Chef wäre.", alt: ["Er spricht, als ob er der Chef wäre.", "Er redet, als wäre er der Chef."] },
+    { en: "She acts as if she knew nothing.", de: "Sie tut so, als ob sie nichts wüsste.", alt: ["Sie tut so, als wüsste sie nichts.", "Sie tut so, als wenn sie nichts wüsste."] },
+    { en: "It looks as if it's going to rain.", de: "Es sieht so aus, als ob es regnen würde.", alt: ["Es sieht aus, als ob es regnen würde.", "Es sieht so aus, als würde es regnen."] },
+    { en: "You look as if you hadn't slept. (du)", de: "Du siehst aus, als ob du nicht geschlafen hättest.", alt: ["Du siehst aus, als hättest du nicht geschlafen."] },
+    { en: "He behaved as if nothing had happened.", de: "Er verhielt sich, als ob nichts passiert wäre.", alt: ["Er hat sich verhalten, als ob nichts passiert wäre.", "Er tat so, als ob nichts passiert wäre."], nw: "sich verhalten = to behave" }
+  ] }
+];
+BUILD[48] = [
+  { tip: "When a verb's preposition introduces a whole clause, put <b>da(r) + preposition</b> before it: Ich achte <b>darauf</b>, dass …", steps: [
+    { en: "I make sure that the slides are clear.", de: "Ich achte darauf, dass die Folien klar sind.", alt: ["Ich achte darauf, dass die Folien übersichtlich sind."] },
+    { en: "We expect that robots will take over many jobs.", de: "Wir rechnen damit, dass Roboter viele Jobs übernehmen.", alt: ["Wir rechnen damit, dass Roboter viele Jobs übernehmen werden."] },
+    { en: "I'm relying on you to send the report. (du)", de: "Ich verlasse mich darauf, dass du den Bericht schickst." },
+    { en: "I have to get used to working from home.", de: "Ich muss mich daran gewöhnen, von zu Hause aus zu arbeiten.", alt: ["Ich muss mich daran gewöhnen, im Homeoffice zu arbeiten."] },
+    { en: "What do we have to pay attention to?", de: "Worauf müssen wir achten?" },
+    { en: "I'd like to point out that skilled workers are lacking.", de: "Ich möchte darauf hinweisen, dass Fachkräfte fehlen.", nw: "fehlen = to be lacking" }
+  ] },
+  { tip: "Presenting: <b>In meinem Vortrag geht es um …</b> · <b>Zunächst …</b> · <b>Damit komme ich zum nächsten Punkt.</b> · <b>Abschließend möchte ich …</b> Disagreeing: <b>Da bin ich anderer Meinung.</b>", steps: [
+    { en: "My talk is about the future of work.", de: "In meinem Vortrag geht es um die Zukunft der Arbeit." },
+    { en: "My talk is divided into three parts.", de: "Mein Vortrag gliedert sich in drei Teile." },
+    { en: "First I'd like to briefly explain what automation means.", de: "Zunächst möchte ich kurz erklären, was Automatisierung bedeutet.", nw: "bedeuten = to mean" },
+    { en: "That brings me to the next point.", de: "Damit komme ich zum nächsten Punkt." },
+    { en: "May I interrupt briefly? I see that differently.", de: "Darf ich kurz unterbrechen? Da bin ich anderer Meinung.", alt: ["Darf ich kurz unterbrechen? Das sehe ich anders."] },
+    { en: "In conclusion, I'd like to summarise the most important results.", de: "Abschließend möchte ich die wichtigsten Ergebnisse zusammenfassen." }
+  ] }
+];
+
 // Pronunciation trainer: the German sounds English and Hebrew speakers find hardest.
 // `match` finds the sound inside any word, so feedback on a missed word can point to the right tip.
 const SOUNDS = [
