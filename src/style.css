@@ -264,7 +264,8 @@ textarea.field { width: 100%; min-height: 110px; font-family: ui-monospace, Menl
 .teach .pn.on { background: var(--ok); color: #fff; }
 .teach .ex .opt:disabled, .teach .ex .tile:disabled { opacity: 1; }
 .tabs[hidden] { display: none !important; }
-.goal .partdots { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.partdots.small { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.partdots.small span { white-space: nowrap; }
 .levelhead { margin: 18px 0 8px; display: flex; align-items: baseline; gap: 10px; }
 .lvrow { display: grid; grid-template-columns: 2.4em 1fr 10em; align-items: center; gap: 10px; padding: 6px 0; }
 .lvrow .bar { height: 8px; }
@@ -312,3 +313,21 @@ a.btn { text-decoration: none; color: inherit; }
 .lpath span.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .convo-log { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
 .convo-log .teacher { max-width: none; }
+
+/* daily goal, streak and the way to B2 */
+.celsub { display: grid; gap: 10px; justify-items: center; }
+.ring.met { background: radial-gradient(closest-side, var(--surface) 78%, transparent 79% 100%), conic-gradient(var(--ok) 100%, var(--surface-2) 0); }
+.week { display: flex; gap: 4px; }
+.week span { flex: 1; max-width: 40px; display: grid; justify-items: center; gap: 2px; font-size: .7rem; font-weight: 700; color: var(--muted); }
+.week i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .9rem; background: var(--surface-2); border: 1px solid var(--line); }
+.week span.on i { background: var(--warn-bg); border-color: var(--accent); }
+.week span.now { color: var(--ink); }
+.week span.now i { border: 2px solid var(--accent); }
+.journey { display: flex; gap: 4px; width: 100%; }
+.jseg { display: grid; gap: 4px; min-width: 0; }
+.jseg .bar { height: 10px; min-width: 0; }
+.jseg .bar i { background: var(--accent); }
+.jseg.passed .bar i { background: var(--ok); }
+.jlv { font-size: .75rem; font-weight: 800; color: var(--muted); }
+.jseg.passed .jlv { color: var(--ok); }
+.jseg.hi .bar { box-shadow: 0 0 0 2px var(--accent); }
