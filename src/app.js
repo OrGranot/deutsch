@@ -80,7 +80,7 @@ function goalReached() {
 let lastAct = Date.now();
 ["pointerdown", "keydown"].forEach(e => document.addEventListener(e, () => { lastAct = Date.now(); }, true));
 setInterval(() => {
-  if (document.hidden || !["teach", "review", "speak", "sounds", "lehrer"].includes(view) || Date.now() - lastAct > 2 * MIN || document.querySelector(".celebrate")) return;
+  if (document.hidden || !["teach", "review", "speak", "sounds", "lehrer", "karten"].includes(view) || Date.now() - lastAct > 2 * MIN || document.querySelector(".celebrate")) return;
   const was = goalMet(today()), d = day(); d.sec = (d.sec || 0) + 15;
   if (d.sec % 60 === 0) save();
   if (!was && goalMet(today())) goalReached();
@@ -470,14 +470,14 @@ const playBtn = (text, label = "Listen") => `<button class="icon-btn" data-act="
 
 // ---------- views ----------
 function render() {
-  const tabs = [["home", "Lernen", ICON.home], ["lehrer", "Lehrer", ICON.chat], ["stats", "Fortschritt", ICON.chart]];
+  const tabs = [["home", "Lernen", ICON.home], ["karten", "Karten", ICON.cards], ["lehrer", "Lehrer", ICON.chat], ["stats", "Fortschritt", ICON.chart]];
   if (CFG && !auth) { $("#app").innerHTML = `<main id="main">${vSignin()}</main>`; const f = $("[autofocus]"); if (f) f.focus(); return; }
   $("#app").innerHTML = `
   <header class="top"><div class="top-in">
     <div class="brand">Sprechstunde <small>${curLesson().level}</small></div>
     <nav class="tabs" aria-label="Sections" ${view === "teach" ? "hidden" : ""}>${tabs.map(([k, l, i]) => `<button class="tab" data-act="nav" data-view="${k}" ${view === k || (k === "home" && ["review", "speak", "sounds"].includes(view)) || (k === "stats" && view === "course") ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}</nav>
   </div></header>
-  <main id="main">${({ home: vHome, course: vCourse, review: vReview, speak: vSpeak, stats: vStats, sounds: vSounds, teach: vTeach, lehrer: vLehrer })[view]()}</main>`;
+  <main id="main">${({ home: vHome, course: vCourse, review: vReview, speak: vSpeak, stats: vStats, sounds: vSounds, teach: vTeach, lehrer: vLehrer, karten: vKarten })[view]()}</main>`;
   const f = $("[autofocus]"); if (f) f.focus();
 }
 
@@ -526,6 +526,7 @@ function vHome() {
     <p class="small">${met ? "Your streak is safe. See you tomorrow." : st ? `Finish one lesson (or ${GOAL_MIN} minutes of practice) to keep your ${st}-day streak.` : lost > 1 ? `Your ${lost}-day streak ended yesterday. One lesson today starts a new one.` : `One lesson (or ${GOAL_MIN} minutes of practice) every day builds a streak.`}</p>
     <div class="week" aria-label="This week">${week.map(x => `<span class="${goalMet(x.k) ? "on" : ""} ${x.k === today() ? "now" : ""}"><i>${goalMet(x.k) ? "🔥" : ""}</i>${x.l}</span>`).join("")}</div>
     <p class="small muted">${mins ? `${mins} min today · ` : ""}best streak ${bestStreak()} · ${S.xp || 0} XP</p></div></section>
+  ${wkHome()}
   ${remindHome()}
   ${c.placed ? `<section class="panel"><div class="row between"><span class="label">Your way to B2</span><b class="num">${journey().pct}%</b></div>${journeyHTML()}
     <p class="small muted">Lektion ${L.id} of ${LESSONS.length}. ${nextMilestone()}</p>${levelPath(L)}
@@ -1096,6 +1097,280 @@ function cardAdvance() {
   if (sess && sess.cur && sess.mode === "speak" && sess.listenOk && card(sess.cur).s !== "new") setTimeout(() => { if (sess && sess.cur && !sess.verdict && !rec && view === "review") cardListen(); }, 500);
 }
 
+
+// ===================== Wortkarten (vocabulary card game) =====================
+// Words with their article, any time, without a whole lesson. Same spaced-repetition cards
+// as the daily lesson, so what's learned here comes back in the warm-ups and vice versa.
+// What the round does and why: new words are shown once (article coloured: der blue, die red,
+// das green), then recognised (pick from 4, with a wrong-article trap), then recalled from the
+// English with the article. A miss comes back a few cards later until it's right. The article
+// rules of thumb show whenever they fit the word. Artikel-Blitz drills only the article, fast.
+const WK_ROUND = 12, WK_NEW = 6, BLITZ_SEC = 60, BLITZ_PENALTY = 3;
+let kr = null;   // card round
+let bz = null;   // Artikel-Blitz
+const vstat = () => (S.vocab ||= { best: 0, rounds: 0 });
+const isNoun = id => !!WORDS[id].art && !WORDS[id].plOnly;
+const isKnown = id => (S.cards[id]?.ivl || 0) >= 7;
+const isDue = id => !!S.cards[id] && S.cards[id].s !== "new" && S.cards[id].due <= Date.now() + 5 * MIN;
+const artWrong = id => { const g = S.gender[id]; return !!g && g.w > g.r / 2; };
+const trickyIds = () => Object.keys(S.cards).filter(id => WORDS[id] && (struggling(card(id)) || artWrong(id))).sort((a, b) => (card(b).fails + (S.gender[b]?.w || 0)) - (card(a).fails + (S.gender[a]?.w || 0)));
+// article rules of thumb, shown only when the word follows them
+const ART_RULES = [
+  ["die", /(ung|heit|keit|schaft|ion|tät)$/, "Nouns ending in -ung, -heit, -keit, -schaft, -ion, -tät are always die."],
+  ["die", /(ik|ie|ei|enz|anz|ur)$/, "Nouns ending in -ik, -ie, -ei, -enz, -anz, -ur are almost always die."],
+  ["das", /(chen|lein)$/, "Nouns ending in -chen or -lein are always das."],
+  ["das", /(ment|um|nis|tum)$/, "Nouns ending in -ment, -um, -tum and most in -nis are das."],
+  ["der", /(ling|ismus|or|ant|ist|ig)$/, "Nouns ending in -ling, -ismus, -or, -ant, -ist, -ig are der."],
+  ["der", /^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|frühling|sommer|herbst|winter|tag|monat|morgen|abend|nachmittag|vormittag|norden|süden|osten|westen|regen|schnee|wind|nebel)$/, "Days, months, seasons, times of day, directions and weather are der."],
+  ["die", /e$/, "Most nouns ending in -e are die (about 9 in 10)."],
+  ["das", /^ge/, "Many nouns starting with Ge- are das."],
+  ["der", /er$/, "Nouns ending in -er for people and tools are usually der."],
+  ["das", /(en)$/, "A verb used as a noun is always das (das Essen, das Leben)."]
+];
+function artRule(w) {
+  if (!w.art) return "";
+  const x = w.word.toLowerCase().split(/[\s-]/).pop();
+  const r = ART_RULES.find(([a, re]) => re.test(x) && a === w.art);
+  if (r && r[1].source === "(en)$" && !/^[a-zäöü]+en$/.test(x)) return "";
+  return r ? r[2] : "";
+}
+const ruleHTML = w => { const r = artRule(w); return r ? `<p class="small rule"><b>Tip:</b> ${esc(r)}</p>` : ""; };
+
+// ----- choosing the words for a round -----
+function wkPick(kind, arg) {
+  const weak = ids => ids.slice().sort((a, b) => (card(a).ivl - card(b).ivl) || (card(a).due - card(b).due));
+  let due = [], fresh = [], rest = [];
+  if (kind === "lesson") {
+    const ws = LESSON[arg].words;
+    due = shuffle(ws.filter(isDue)); fresh = ws.filter(id => !S.cards[id]).slice(0, WK_NEW);
+    rest = weak(ws.filter(id => S.cards[id] && !isDue(id)));
+  } else if (kind === "tricky") {
+    due = trickyIds();
+  } else if (kind === "list") {
+    due = arg.filter(id => S.cards[id]); fresh = arg.filter(id => !S.cards[id]);
+  } else {
+    due = dueWords(WK_ROUND);
+    const L = curLesson(), pool = [L, LESSON[L.id + 1]].filter(Boolean).flatMap(x => x.words);
+    fresh = pool.filter(id => !S.cards[id]).slice(0, Math.min(WK_NEW, Math.max(3, WK_ROUND - due.length)));
+    rest = weak(Object.keys(S.cards).filter(id => WORDS[id] && !isDue(id)));
+  }
+  // new words spread out between the known ones, so they don't come all at once
+  const seen = [...due, ...rest].filter((id, i, a) => a.indexOf(id) === i).slice(0, WK_ROUND - Math.min(fresh.length, WK_NEW));
+  const nw = fresh.slice(0, WK_ROUND - seen.length), out = shuffle(seen.slice(0, WK_ROUND));
+  nw.forEach((id, i) => out.splice(Math.min(out.length, i * 2 + 1), 0, id));
+  return out.slice(0, WK_ROUND);
+}
+function wkStart(kind, arg) {
+  if (bz) { bzStop(); bz = null; }
+  const ids = wkPick(kind, arg);
+  if (!ids.length) { toast(kind === "tricky" ? "No tricky words right now. Nice." : "Nothing to practise here yet."); return; }
+  const items = {};
+  ids.forEach(id => { const c = S.cards[id]; items[id] = { steps: !c ? ["intro", "mc", "recall"] : c.s !== "rev" || c.reps < 3 ? ["mc", "recall"] : ["recall"], si: 0, miss: false, graded: false, tries: 0 }; });
+  kr = { kind, arg, ids, items, q: ids.slice(), cur: null, r: null, score: 0, combo: 0, best: 0, ok: 0, n: 0, tok: 0 };
+  view = "karten"; wkNext(); window.scrollTo(0, 0);
+}
+const wkStep = () => kr.cur && kr.items[kr.cur].steps[kr.items[kr.cur].si];
+function wkNext() {
+  kr.tok++; kr.r = null; kr.picked = null; kr.cur = kr.q.shift() || null;
+  if (kr.cur && wkStep() === "mc") kr.opts = wkOpts(WORDS[kr.cur]);
+  if (!kr.cur) wkFinish();
+  render();
+  if (kr.cur && wkStep() === "intro") say(WORDS[kr.cur].de);
+}
+function wkOpts(w) {
+  const lvl = LESSON[w.lesson].level, taken = new Set([w.de.toLowerCase(), w.en.toLowerCase()]);
+  const pool = Object.values(WORDS).filter(o => o.id !== w.id && !!o.art === !!w.art && !taken.has(o.de.toLowerCase()) && !taken.has(o.en.toLowerCase()));
+  const near = [...shuffle(pool.filter(o => o.lesson === w.lesson)), ...shuffle(pool.filter(o => LESSON[o.lesson].level === lvl)), ...shuffle(pool)];
+  const opts = [w.de];
+  for (const o of near) { if (opts.length >= (w.art ? 3 : 4)) break; if (!opts.includes(o.de) && !(w.art && o.word === w.word)) opts.push(o.de); }
+  if (w.art) opts.push(shuffle(["der", "die", "das"].filter(a => a !== w.art))[0] + " " + w.word);
+  return shuffle(opts);
+}
+// one SRS grade per word per round: its first miss, or its first clean recall
+function wkGrade(id, r) {
+  const it = kr.items[id]; if (it.graded) return; it.graded = true;
+  const wasNew = !S.cards[id], d = day();
+  S.cards[id] = schedule(card(id), r); d.rev++; if (wasNew) d.nw++;
+  save();
+}
+function wkAnswer(ok, info = {}) {
+  const id = kr.cur, it = kr.items[id], w = WORDS[id], step = wkStep();
+  kr.n++; kr.rstep = step;
+  if (w.art && (step === "recall" || info.article)) { const g = (S.gender[id] ||= { r: 0, w: 0 }); if (ok) g.r++; else if (info.article || info.kind === "article") g.w++; }
+  if (ok) {
+    kr.combo++; kr.best = Math.max(kr.best, kr.combo); kr.ok++;
+    const mult = kr.combo >= 6 ? 3 : kr.combo >= 3 ? 2 : 1, pts = (step === "recall" ? 15 : 10) * mult;
+    kr.score += pts; kr.r = { ...info, v: info.v || "ok", pts, mult };
+    if (step === "recall") wkGrade(id, it.miss ? 0 : info.grade ?? 2);
+    it.si++;
+    if (it.si < it.steps.length) kr.q.splice(Math.min(kr.q.length, 2), 0, id);
+    chime(false);
+  } else {
+    kr.combo = 0; it.miss = true; it.tries++; wkGrade(id, 0);
+    logMiss({ w: id, k: info.kind || (info.article ? "article" : "miss") });
+    kr.r = { ...info, v: info.v || "bad" };
+    // back a few cards later; after three misses it waits for the next round
+    if (it.tries < 3) kr.q.splice(Math.min(kr.q.length, 3), 0, id);
+  }
+  save(); render();
+  if (!info.silent) say(w.de);
+  if (ok && !info.note) { const t = kr.tok; setTimeout(() => { if (kr && kr.tok === t && view === "karten" && !document.querySelector(".celebrate")) wkNext(); }, step === "mc" ? 1100 : 1500); }
+}
+function wkCheckTyped() {
+  const i = $("#wkin"), v = i ? i.value.trim() : ""; if (!v) return i && i.focus();
+  const w = WORDS[kr.cur], res = checkWord(v, w);
+  if (res.ok) return wkAnswer(true, { typed: v, note: res.typo ? `Almost: it's spelled <b>${deHTML(w)}</b>.` : "", grade: res.typo ? 1 : 2 });
+  if (res.article) return wkAnswer(false, { typed: v, article: true, kind: "article", title: "Wrong article", detail: `It's <b class="${gClass(w)}">${w.art}</b> ${esc(w.word)}, not ${esc(res.article)}.` });
+  if (res.noArticle) return wkAnswer(false, { typed: v, article: true, kind: "noart", v: "close", title: "Right word, now with the article", detail: `<b class="${gClass(w)}">${w.art}</b> ${esc(w.word)}. The article is part of the word.` });
+  wkAnswer(false, { typed: v, title: "Not quite", detail: `You wrote “${esc(v)}”.` });
+}
+async function wkListen() {
+  if (rec) { rec.stop(); return; }
+  const id = kr.cur, w = WORDS[id], t = kr.tok;
+  try {
+    const pr = listen(x => { const h = $("#heard"); if (h) h.textContent = x || "Listening…"; });
+    render();
+    const alts = await pr;
+    if (!kr || kr.cur !== id || kr.tok !== t) return;
+    if (!alts.length) { render(); return toast("I didn't hear anything. Tap the mic and speak."); }
+    day().spoke++;
+    const d = diagnose(alts, w);
+    if (d.v === "ok") wkAnswer(true, { grade: 2 });
+    else if (d.kind === "pron") wkAnswer(true, { grade: 1, v: "close", note: d.detail, title: d.title });
+    else wkAnswer(false, { kind: d.kind, article: d.kind === "article" || d.kind === "noart", v: d.v, title: d.title, detail: d.detail });
+  } catch (err) { micError(err); render(); }
+}
+function wkFinish() {
+  const acc = kr.n ? kr.ok / kr.n : 0, st = acc >= 0.95 ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
+  kr.done = { acc, st }; const v = vstat(); v.rounds++;
+  addXP(Math.max(1, Math.round(kr.score / 20)), "cards");
+  if (st === 3) celebrate({ title: "Perfekt!", starsN: 3, sub: `${kr.ids.length} words, ${kr.score} points. Every word is scheduled to come back right before you'd forget it.` });
+  else chime(true);
+}
+const comboHTML = () => kr.combo >= 2 ? `<span class="combo ${kr.combo >= 6 ? "x3" : kr.combo >= 3 ? "x2" : ""}">🔥 ${kr.combo}${kr.combo >= 3 ? ` · ×${kr.combo >= 6 ? 3 : 2}` : ""}</span>` : "";
+const backFace = (w, hint) => `<div class="answer">${deHTML(w)}</div>${plText(w) ? `<div class="sub">${esc(plText(w))}</div>` : ""}${hint ? ruleHTML(w) : ""}${w.ex ? `<p class="example"><i>${esc(w.ex)}</i><br><span class="muted">${esc(w.exEn || "")}</span></p>` : ""}<div class="row" style="justify-content:center">${playBtn(w.de)}${w.ex ? `<button class="btn ghost" data-act="say" data-text="${esc(w.ex)}">${ICON.play} Example</button>` : ""}</div>`;
+function vWk() {
+  if (kr.done) {
+    const { acc, st } = kr.done, list = kr.ids.map(id => ({ w: WORDS[id], it: kr.items[id] }));
+    return `<section class="cardbox wkend"><span class="badge win">Round done</span>${starHTML(st)}<div class="answer num">${kr.score} <small class="muted">points</small></div>
+      <p class="sub">${Math.round(acc * 100)}% right${kr.best >= 3 ? ` · best combo ${kr.best}` : ""}</p>
+      <ul class="wklist">${list.map(({ w, it }) => `<li class="${w.art ? "art-" + w.art : ""}"><span>${deHTML(w)}</span><span class="small muted">${esc(w.en)}</span><span class="small ${it.miss ? "bad" : "ok"}">${it.miss ? "again soon" : "✓"}</span></li>`).join("")}</ul>
+      <div class="row" style="justify-content:center"><button class="btn primary big" data-act="wkAgain" autofocus>Next round</button><button class="btn" data-act="wkQuit">All decks</button></div></section>`;
+  }
+  const w = WORDS[kr.cur], it = kr.items[kr.cur], r = kr.r, step = r ? kr.rstep : wkStep();
+  const doneN = kr.ids.reduce((n, id) => n + kr.items[id].si, 0), allN = kr.ids.reduce((n, id) => n + kr.items[id].steps.length, 0);
+  const head = `<div class="progress"><button class="btn ghost" data-act="wkQuit" aria-label="End round">${ICON.back}</button><span class="bar"><i style="width:${Math.round(100 * doneN / Math.max(1, allN))}%"></i></span>${comboHTML()}<span class="small num wkscore">${kr.score}</span></div>`;
+  const artCls = r || step === "intro" ? (w.art ? " art-" + w.art : "") : "";
+  if (step === "intro") return head + `<section class="cardbox flip${artCls}"><span class="badge new">New word</span><span class="prompt">${esc(w.en)}</span>${backFace(w, true)}
+    ${w.art ? `<p class="small muted">Learn it with the colour: <b class="g-${w.art}">${w.art}</b> is ${({ der: "blue", die: "red", das: "green" })[w.art]}.</p>` : ""}<button class="btn primary big" data-act="wkGot" autofocus>Got it</button></section>`;
+  const badge = struggling(card(kr.cur)) ? `<span class="badge hard">Tricky word</span>` : it.miss ? `<span class="badge hard">Once more</span>` : "";
+  if (step === "mc") {
+    const res = r ? `<div class="verdict ${r.v}"><div class="vicon">${r.v === "ok" ? "✓" : "✗"}</div><div><b>${r.v === "ok" ? `Richtig! +${r.pts}` : esc(r.title || "Not this one")}</b>${r.detail ? `<div>${r.detail}</div>` : ""}</div></div>` : "";
+    return head + `<section class="cardbox${r ? " flip" + artCls : ""}">${badge}<span class="label">Which one is it?</span><span class="prompt">${esc(w.en)}</span>
+      <div class="mcopts">${kr.opts.map((o, k) => { const right = o === w.de, cls = !r ? "" : right ? "right" : kr.picked === k ? "wrong" : "dim"; const ow = Object.values(WORDS).find(x => x.de === o); return `<button class="mcopt ${cls}" data-act="wkPick" data-k="${k}" ${r ? "disabled" : ""}><span class="kn">${k + 1}</span>${r && right ? deHTML(w) : r && ow && ow.art ? deHTML(ow) : esc(o)}</button>`; }).join("")}</div>
+      ${res}${r ? `${r.v !== "ok" ? ruleHTML(w) : ""}<button class="btn primary" data-act="wkNext" ${r.v === "ok" ? "" : "autofocus"}>Weiter</button>` : ""}</section>`;
+  }
+  // recall: from the English, with the article
+  if (!r) {
+    const live = !!rec;
+    return head + `<section class="cardbox">${badge}<span class="label">In German${w.art ? ", with der, die or das" : ""}</span><span class="prompt big">${esc(w.en)}</span>
+      <input id="wkin" class="typein" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${w.art ? "der / die / das …" : "Deutsch …"}" ${micBlocked ? "autofocus" : ""}>
+      <div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="wkIns" data-ch="${u}">${u}</button>`).join("")}</div>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-act="wkCheck">Check</button>${micBlocked ? "" : `<button class="btn ${live ? "rec-stop" : ""}" data-act="wkListen">${ICON.mic} ${live ? "Stop" : "Say it"}</button>`}<button class="btn ghost" data-act="wkDk">I don't know</button></div>
+      ${micBlocked ? "" : `<div class="heard small muted" id="heard">${live ? "Listening…" : ""}</div>`}</section>`;
+  }
+  const ok = r.v === "ok" || (r.v === "close" && r.pts);
+  return head + `<section class="cardbox flip${artCls}">${badge}<span class="sub">${esc(w.en)}</span>
+    <div class="verdict ${ok && r.note ? "close" : r.v}"><div class="vicon">${ok ? (r.note ? "~" : "✓") : r.v === "close" ? "~" : "✗"}</div><div><b>${ok ? `${r.note ? esc(r.title || "Counts!") : "Richtig!"} +${r.pts}${r.mult > 1 ? ` (×${r.mult})` : ""}` : esc(r.title)}</b>${ok && r.note ? `<div>${r.note}</div>` : r.detail ? `<div>${r.detail}</div>` : ""}</div></div>
+    ${backFace(w, !ok || it.steps.includes("intro"))}
+    <button class="btn primary big" data-act="wkNext" ${ok && !r.note ? "" : "autofocus"}>Weiter</button>${!ok && r.typed ? `<button class="btn ghost small" data-act="wkOverride">I was right</button>` : ""}</section>`;
+}
+
+// ----- Artikel-Blitz: 60 seconds of der, die, das -----
+function blitzPool() {
+  let ids = [...new Set([...Object.keys(S.cards).filter(id => WORDS[id]), ...deckIds()])].filter(isNoun);
+  if (ids.length < 30) ids = [...new Set([...ids, ...levelLessons(curLesson().level).flatMap(L => L.words).filter(isNoun)])];
+  if (ids.length < 30) ids = [...new Set([...ids, ...LESSONS.slice(0, 6).flatMap(L => L.words).filter(isNoun)])];
+  const weight = id => { const g = S.gender[id] || { r: 0, w: 0 }; return Math.max(0.3, 1 + g.w * 3 - g.r * 0.4); };
+  return ids.map(id => ({ id, k: Math.random() ** (1 / weight(id)) })).sort((a, b) => b.k - a.k).map(x => x.id);
+}
+function bzStart() {
+  kr = null; bzStop();
+  bz = { q: blitzPool(), i: 0, score: 0, combo: 0, best: 0, miss: [], end: Date.now() + BLITZ_SEC * 1000, flash: null, n: 0 };
+  view = "karten"; render(); window.scrollTo(0, 0);
+  bz.timer = setInterval(bzTick, 200);
+}
+function bzStop() { if (bz?.timer) clearInterval(bz.timer); if (bz) bz.timer = null; }
+function bzTick() {
+  if (!bz || bz.over) return bzStop();
+  const left = Math.max(0, bz.end - Date.now());
+  const t = $("#bztime"), b = $("#bzbar");
+  if (t) t.textContent = Math.ceil(left / 1000); if (b) b.style.width = (100 * left / (BLITZ_SEC * 1000)) + "%";
+  if (left <= 0) bzOver();
+}
+function bzOver() {
+  bzStop(); bz.over = true; bz.flash = null;
+  const v = vstat(); bz.record = bz.score > (v.best || 0) && bz.score > 0; v.best = Math.max(v.best || 0, bz.score);
+  addXP(Math.max(1, Math.round(bz.score / 3)), "Blitz"); save(); render();
+  if (bz.record) celebrate({ title: "Neuer Rekord!", sub: `${bz.score} articles right in ${BLITZ_SEC} seconds.` });
+}
+function bzPick(a) {
+  if (!bz || bz.over || bz.flash) return;
+  const id = bz.q[bz.i % bz.q.length], w = WORDS[id], g = (S.gender[id] ||= { r: 0, w: 0 });
+  bz.n++;
+  if (a === w.art) { g.r++; bz.score++; bz.combo++; bz.best = Math.max(bz.best, bz.combo); bz.i++; bz.last = { id, ok: true }; if (bz.combo % 5 === 0) chime(false); save(); render(); return; }
+  g.w++; bz.combo = 0; bz.end -= BLITZ_PENALTY * 1000; if (!bz.miss.includes(id)) bz.miss.push(id);
+  logMiss({ w: id, k: "article" });
+  bz.flash = { id, picked: a }; save(); render(); say(w.de);
+  setTimeout(() => { if (!bz || bz.over) return; bz.flash = null; bz.i++; render(); }, 1400);
+}
+function vBlitz() {
+  if (bz.over) {
+    return `<section class="cardbox wkend"><span class="badge win">Zeit!</span><div class="answer num">${bz.score}</div><p class="sub">${bz.record ? "New best!" : `Best: ${vstat().best}`} · ${bz.n ? Math.round(100 * bz.score / bz.n) : 0}% right${bz.best >= 5 ? ` · longest run ${bz.best}` : ""}</p>
+      ${bz.miss.length ? `<p class="small">Missed:</p><ul class="wklist">${bz.miss.map(id => { const w = WORDS[id]; return `<li class="art-${w.art}"><span>${deHTML(w)}</span><span class="small muted">${esc(w.en)}</span></li>`; }).join("")}</ul>` : `<p class="small">No mistakes. Stark!</p>`}
+      <div class="row" style="justify-content:center"><button class="btn primary big" data-act="bzStart" autofocus>Play again</button>${bz.miss.length ? `<button class="btn" data-act="wkMissed">Learn the missed ones</button>` : ""}<button class="btn ghost" data-act="wkQuit">All decks</button></div></section>`;
+  }
+  const left = Math.max(0, bz.end - Date.now()), id = bz.flash ? bz.flash.id : bz.q[bz.i % bz.q.length], w = WORDS[id], f = bz.flash;
+  return `<div class="progress"><button class="btn ghost" data-act="wkQuit" aria-label="Stop">${ICON.back}</button><span class="bar bztimebar"><i id="bzbar" style="width:${100 * left / (BLITZ_SEC * 1000)}%"></i></span><b class="num" id="bztime">${Math.ceil(left / 1000)}</b></div>
+  <section class="cardbox blitz${f ? " art-" + w.art + " shake" : bz.last?.ok ? " good" : ""}"><div class="row between" style="width:100%"><span class="label">der, die oder das?</span><span class="num"><b>${bz.score}</b>${bz.combo >= 3 ? ` <span class="combo">🔥 ${bz.combo}</span>` : ""}</span></div>
+    <div class="answer">${f ? deHTML(w) : esc(w.word)}</div><span class="sub">${esc(w.en)}</span>
+    ${f ? `<div class="result bad">It's ${w.art}. −${BLITZ_PENALTY} s</div>${ruleHTML(w)}` : ""}
+    <div class="gbtns">${["der", "die", "das"].map(a => `<button class="gbtn ${a} ${f && a === w.art ? "picked" : ""}" data-act="bzPick" data-a="${a}" ${f ? "disabled" : ""}><span>${a}</span></button>`).join("")}</div>
+    <span class="kbd">Keys 1, 2, 3 · a wrong answer costs ${BLITZ_PENALTY} seconds</span></section>`;
+}
+
+// ----- the decks -----
+function deckRow(L) {
+  const ws = L.words, k = ws.filter(isKnown).length, seen = ws.filter(id => S.cards[id]).length, due = ws.filter(isDue).length, cur = L.id === curLesson().id;
+  return `<button class="deck ${cur ? "cur" : ""}" data-act="wkStart" data-kind="lesson" data-id="${L.id}"><span class="dn num">${L.id}</span><span class="dt"><b>${esc(L.title)}</b><span class="bar"><i style="width:${Math.round(100 * k / ws.length)}%"></i><i class="seen" style="width:${Math.round(100 * (seen - k) / ws.length)}%"></i></span><span class="small muted">${k}/${ws.length} known${seen > k ? ` · ${seen - k} learning` : ""}${due ? ` · <b>${due} due</b>` : ""}${cur ? " · your lesson now" : ""}</span></span>${ICON.arrow}</button>`;
+}
+function vDecks() {
+  const due = dueWords(999).length, tricky = trickyIds().length, lv = curLesson().level, v = vstat();
+  const all = Object.keys(WORDS), known = all.filter(isKnown).length;
+  return `<section class="hero"><h1>Wortkarten</h1><p class="muted">Every noun comes with its article and its colour: <b class="g-der">der</b> blue, <b class="g-die">die</b> red, <b class="g-das">das</b> green. ${known} of ${all.length} words known.</p></section>
+  <section class="stack">
+    <button class="action main" data-act="wkStart" data-kind="mix"><span class="ico">${ICON.cards}</span><span><h3>Play ${WK_ROUND} cards</h3><span class="muted small">${due ? `${due} word${due > 1 ? "s" : ""} due for review, ` : ""}plus new words from your lesson. See it, pick it, then say or type it with the article.</span></span><span>${ICON.arrow}</span></button>
+    <button class="action" data-act="bzStart"><span class="ico art3">${ICON.tag}</span><span><h3>Artikel-Blitz</h3><span class="muted small">${BLITZ_SEC} seconds of der, die oder das. Articles you miss come up more often.${v.best ? ` Best: <b>${v.best}</b>.` : ""}</span></span><span>${ICON.arrow}</span></button>
+    ${tricky ? `<button class="action" data-act="wkStart" data-kind="tricky"><span class="ico">${ICON.repeat}</span><span><h3>Tricky words</h3><span class="muted small">${tricky} word${tricky > 1 ? "s" : ""} you keep missing, or whose article you mix up.</span></span><span>${ICON.arrow}</span></button>` : ""}
+  </section>
+  <section class="panel"><span class="label">By lesson</span>
+    ${LEVELS.map(l => { const ls = levelLessons(l), ids = ls.flatMap(L => L.words), k = ids.filter(isKnown).length; return `<details class="lvdeck" ${l === lv ? "open" : ""}><summary><b>${l}</b><span class="small muted">${k}/${ids.length} known</span></summary><div class="decks">${ls.map(deckRow).join("")}</div></details>`; }).join("")}
+  </section>
+  <details class="panel"><summary><b>Rules of thumb for der, die, das</b></summary>
+    <ul class="small rules"><li><b class="g-die">die</b>: -ung, -heit, -keit, -schaft, -ion, -tät, -ik, -ie, -ei, -ur; most nouns ending in -e; female people.</li>
+    <li><b class="g-der">der</b>: days, months, seasons, weather, directions; -ling, -ismus, -or, -ant, -ist, -ig; male people; most -er for people and tools.</li>
+    <li><b class="g-das">das</b>: -chen, -lein (always), -ment, -um, -tum, most -nis; verbs used as nouns (das Essen); many Ge- words.</li>
+    <li>In a compound the last word decides: <b class="g-das">das</b> Haus → <b class="g-die">die</b> Haustür.</li>
+    <li>Plural is always <b class="g-die">die</b>, so learn the singular with its article.</li></ul></details>
+  <p class="muted small">How it works: a new word is shown once, then you pick it from four (one has the wrong article), then you produce it from the English. A miss comes back a few cards later until it's right. Every answer goes into the same review schedule as your lessons, so these words come back in the warm-ups right before you'd forget them.</p>`;
+}
+function vKarten() { return bz ? vBlitz() : kr ? vWk() : vDecks(); }
+function wkHome() {
+  const due = dueWords(999).length, v = vstat();
+  return `<section class="panel wkhome"><div class="row between"><span class="label">Wortkarten</span><span class="small muted">${due ? `${due} due` : ""}${v.best ? `${due ? " · " : ""}Blitz best ${v.best}` : ""}</span></div>
+    <p class="small">No time for a lesson? Learn words with <b class="g-der">der</b>, <b class="g-die">die</b>, <b class="g-das">das</b> as a quick card game.</p>
+    <div class="row"><button class="btn accent" data-act="wkStart" data-kind="mix">${ICON.cards} Play ${WK_ROUND} cards</button><button class="btn" data-act="bzStart">${ICON.tag} Artikel-Blitz</button><button class="btn ghost" data-act="nav" data-view="karten">By lesson ${ICON.arrow}</button></div></section>`;
+}
 
 // ===================== Guided daily lesson ("Unterricht") =====================
 // One path, planned by the app, built on what language research supports:
@@ -2451,8 +2726,22 @@ const A = {
   convoSay: d => { const m = task()?.cv?.msgs[+d.i]; if (m) convoSpeak(m.content); },
   convoReveal: d => { const cv = task()?.cv; if (!cv) return; (cv.reveal ||= {})[d.i] = !cv.reveal[d.i]; render(); },
   convoSend: () => convoSend(),
-  nav: d => { if (dict) stopDictation(); if (cmic) convoStopMic(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
+  nav: d => { if (dict) stopDictation(); if (cmic) convoStopMic(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view !== "karten" && bz) { bzStop(); bz = null; } if (view === "karten" && kr?.done) kr = null; if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
+  wkStart: d => { closeCel(); wkStart(d.kind, d.id ? +d.id : undefined); },
+  wkAgain: () => { closeCel(); wkStart(kr.kind, kr.arg); },
+  wkMissed: () => { const ids = bz.miss.slice(); bz = null; wkStart("list", ids); },
+  wkQuit: () => { closeCel(); if (rec) rec.abort(); bzStop(); bz = null; kr = null; view = "karten"; render(); window.scrollTo(0, 0); },
+  wkGot: () => { const it = kr.items[kr.cur]; it.si++; kr.q.splice(Math.min(kr.q.length, 2), 0, kr.cur); wkNext(); },
+  wkNext: () => wkNext(),
+  wkPick: d => { if (kr.r) return; const w = WORDS[kr.cur], o = kr.opts[+d.k]; kr.picked = +d.k; if (o === w.de) wkAnswer(true, { silent: false }); else { const wrongArt = w.art && o.endsWith(" " + w.word); wkAnswer(false, { article: wrongArt, kind: wrongArt ? "article" : "miss", title: wrongArt ? "Wrong article" : "Not this one", detail: wrongArt ? `It's <b class="${gClass(w)}">${w.art}</b> ${esc(w.word)}.` : `“${esc(w.en)}” is <b>${deHTML(w)}</b>.` }); } },
+  wkCheck: () => wkCheckTyped(),
+  wkListen: () => wkListen(),
+  wkDk: () => wkAnswer(false, { kind: "dk", title: "Here it is", detail: "Read it, listen, and say it once out loud. It comes back in a moment." }),
+  wkOverride: () => { const id = kr.cur, it = kr.items[id]; it.miss = false; it.tries = Math.max(0, it.tries - 1); const qi = kr.q.indexOf(id); if (qi >= 0) kr.q.splice(qi, 1); if (it.graded) { S.cards[id] = schedule({ ...S.cards[id], fails: Math.max(0, S.cards[id].fails - 1) }, 2); } it.si++; if (it.si < it.steps.length) kr.q.splice(Math.min(kr.q.length, 2), 0, id); kr.ok++; save(); wkNext(); },
+  wkIns: d => { const i = $("#wkin"); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + d.ch + i.value.slice(p); i.focus(); i.setSelectionRange(p + 1, p + 1); },
+  bzStart: () => { closeCel(); bzStart(); },
+  bzPick: d => bzPick(d.a),
   sayFree: d => sayFree(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },
@@ -2556,6 +2845,17 @@ document.addEventListener("keydown", e => {
     const b = $('#main [data-act="teachNext"]') || $('#main [data-act$="Type"]') || (e.target.matches(".gapin") && $('#main [data-act="teachExCheck"]')) || $('#main .mic') || $('#main [data-act="teachExCheck"]');
     if (b && !(e.key === "Enter" && e.target.matches("button"))) { e.preventDefault(); b.click(); }
     return;
+  }
+  if (view === "karten") {
+    if (bz && !bz.over) { if (["1", "2", "3"].includes(e.key)) { e.preventDefault(); bzPick(["der", "die", "das"][+e.key - 1]); } return; }
+    if (kr && !kr.done && kr.cur) {
+      if (e.target.id === "wkin") { if (e.key === "Enter") { e.preventDefault(); wkCheckTyped(); } return; }
+      if (e.target.matches("input, textarea")) return;
+      const st = kr.r ? kr.rstep : wkStep();
+      if (st === "mc" && !kr.r && ["1", "2", "3", "4"].includes(e.key)) { e.preventDefault(); A.wkPick({ k: +e.key - 1 }); return; }
+      if ((e.key === "Enter" || e.key === " ") && !e.target.matches("button")) { e.preventDefault(); if (st === "intro") A.wkGot(); else if (kr.r) wkNext(); }
+      return;
+    }
   }
   if (e.target.id === "lehrerIn") { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chatSend(); } return; }
   if (e.target.matches("input, textarea, select")) { if (e.key === "Enter" && e.target.id === "typein") { e.preventDefault(); A.checkType(); } if (e.key === "Enter" && e.target.id === "pw") (signin.mode === "create" ? A.createPassword() : A.pwSignin()); return; }
