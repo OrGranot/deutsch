@@ -354,6 +354,22 @@ a.btn { text-decoration: none; color: inherit; }
 .weekgoal { display: grid; gap: 4px; width: 100%; max-width: 520px; text-align: left; background: var(--warn-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; }
 section.weekgoal { max-width: none; border-radius: var(--r); padding: 14px 18px; }
 .exspeak { display: grid; justify-items: center; gap: 6px; margin: 4px 0; }
+
+/* Lehrer tab: the chat fills the screen */
+.chat.full { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 320px; }
+.chat.full .chatlog { flex: 1; min-height: 0; max-height: none; }
+.chatbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chatbar b { margin-right: auto; }
+.chatbar .modelpick { margin: 0; }
+.chatbar .btn.small { padding: 4px 10px; }
+.chat .history { max-height: 40%; overflow-y: auto; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-shrink: 0; }
+.chat.full .chatin textarea { min-height: 44px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chatbar { flex-wrap: nowrap; }
+.chatbar .modelpick select { width: auto; max-width: 100%; font-size: .85rem; padding: 4px 8px; }
+.chatbar .btn.small { white-space: nowrap; }
+.chatbar .modelpick { min-width: 0; max-width: 34vw; flex: 0 1 auto; }
+.chatbar .btn.small { padding: 4px 8px; }
 </style>
 <script src="config.js"></script>
 </head>
@@ -7805,8 +7821,8 @@ function historyPanel() {
   const old = S.chats.filter(c => c.msgs.length).slice().reverse();
   if (!old.length || (old.length === 1 && old[0].id === S.chatId)) return "";
   const day = t => new Date(t).toLocaleDateString("de-DE", { day: "numeric", month: "short" });
-  return `<details class="panel history" ${chat.histOpen ? "open" : ""}><summary class="small" data-act="histToggle">Conversations (${old.length})</summary>
-    <ul class="convs">${old.map(c => `<li class="${c.id === S.chatId ? "on" : ""}"><button class="conv" data-act="chatOpen" data-id="${c.id}" ${chat.busy ? "disabled" : ""}><span>${esc(chatTitle(c))}</span><span class="small muted">${day(c.t || c.id)} · ${c.msgs.length} messages</span></button><button class="linkbtn small" data-act="chatDel" data-id="${c.id}" aria-label="Delete this conversation">Delete</button></li>`).join("")}</ul></details>`;
+  if (!chat.histOpen) return "";
+  return `<div class="history"><ul class="convs">${old.map(c => `<li class="${c.id === S.chatId ? "on" : ""}"><button class="conv" data-act="chatOpen" data-id="${c.id}" ${chat.busy ? "disabled" : ""}><span>${esc(chatTitle(c))}</span><span class="small muted">${day(c.t || c.id)} · ${c.msgs.length} messages</span></button><button class="linkbtn small" data-act="chatDel" data-id="${c.id}" aria-label="Delete this conversation">Delete</button></li>`).join("")}</ul></div>`;
 }
 // the teacher sends Or to today's lesson first; free chat is for extra questions
 function lessonNudge() {
@@ -7814,6 +7830,17 @@ function lessonNudge() {
   if ((day().lessons || 0) > 0) return "";
   return `<section class="panel today">${teacherSays(c.placed ? "Today's lesson first: words, grammar, sentences, speaking and a talk with me. I've planned it all. Come back here any time with questions." : "First let's find your level with a short check. Then I plan every lesson for you.")}<button class="btn primary" data-act="teachGo">${ICON.mic} Start today's lesson</button></section>`;
 }
+// size the chat panel to the space between the top bar and the tab bar
+function fitChat() {
+  const p = $("#chatpanel"); if (!p || view !== "lehrer") return;
+  const nav = $(".tabs"), navTop = nav && getComputedStyle(nav).position === "fixed" ? nav.getBoundingClientRect().top : innerHeight;
+  const h = Math.max(320, Math.round(navTop - (p.getBoundingClientRect().top + scrollY) - 12));
+  p.style.height = h + "px";
+  const l = $("#chatlog"); if (l) l.scrollTop = l.scrollHeight;
+  // focus the input on a computer; on a phone that would open the keyboard and scroll the page
+  const i = $("#lehrerIn"); if (i && !i.disabled && matchMedia("(pointer: fine)").matches && document.activeElement !== i) i.focus({ preventScroll: true });
+}
+addEventListener("resize", () => fitChat());
 function vLehrer() {
   setTimeout(() => { const l = $("#chatlog"); if (l && !l.dataset.seen) { l.dataset.seen = 1; l.scrollTop = l.scrollHeight; } }, 0);
   if (CFG && auth && chat.providers === null) loadProviders();
@@ -7822,25 +7849,27 @@ function vLehrer() {
     <section class="panel today">${teacherSays(chat.off ? "The in-app teacher isn't switched on yet. Until then, open me in Claude or ChatGPT: your level, your tricky words, recent mistakes and my notes go along." : "Open me in Claude or ChatGPT. Your level, your tricky words, recent mistakes and my notes go along, so I know where to start.")}${sub}<p class="small muted">Uses your own Claude or ChatGPT subscription.</p></section>${memoryPanel()}`;
   const provs = Array.isArray(chat.providers) ? chat.providers : [];
   const cur = provs.some(p => p.id === S.settings.lehrerModel) ? S.settings.lehrerModel : provs[0]?.id;
-  const picker = provs.length > 1 ? `<label class="small muted modelpick">Model <select class="field" data-set="lehrerModel">${provs.map(p => `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select></label>` : provs.length ? `<span class="small muted">Model: ${esc(provs[0].label)}</span>` : "";
+  const picker = provs.length > 1 ? `<label class="modelpick"><span class="sr-only">Model</span><select class="field" data-set="lehrerModel" aria-label="Model">${provs.map(p => `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select></label>` : provs.length ? `<span class="small muted">${esc(provs[0].label)}</span>` : "";
+  const nOld = (S.chats || []).filter(c => c.msgs.length && c.id !== S.chatId).length;
   const msgs = cmsgs().map((m, i) => m.role === "assistant"
-    ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${mdLite(m.content)}<div class="row between"><button class="icon-btn" data-act="chatSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button>${m.by ? `<span class="small muted">${esc(modelLabel(m.by))}</span>` : ""}</div></div></div>`
+    ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${mdLite(unEmoji(m.content))}<div class="row between"><button class="icon-btn" data-act="chatSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button>${m.by ? `<span class="small muted">${esc(modelLabel(m.by))}</span>` : ""}</div></div></div>`
     : `<div class="me"><div class="bubble">${esc(m.content).replace(/\n/g, "<br>")}</div></div>`).join("");
-  return `<section class="hero"><h1>Lehrer</h1><p class="muted">Ask anything. I know your level and what you keep missing.</p>${picker}</section>
-  ${lessonNudge()}${historyPanel()}
-  <section class="panel chat">
+  // the chat fills the screen: a slim bar on top, the messages, the input at the bottom
+  setTimeout(fitChat, 0);
+  return `<section class="panel chat full" id="chatpanel">
+    <div class="chatbar"><b>Lehrer</b>${picker}${nOld ? `<button class="btn ghost small" data-act="histToggle" aria-expanded="${!!chat.histOpen}">Chats (${nOld})</button>` : ""}${cmsgs().length ? `<button class="btn ghost small" data-act="chatNew" ${chat.busy ? "disabled" : ""}>New</button>` : ""}</div>
+    ${historyPanel()}
     <div class="chatlog" id="chatlog">
     ${msgs || teacherSays(`Hallo Or! You're at ${curLesson().level}, Lektion ${curLesson().id}. Ask me a question, write me a sentence in German, or pick one below.`)}
     ${chat.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}
     ${chat.err && !chat.busy ? `<div class="verdict bad"><div class="vicon">!</div><div><b>${esc(chat.err)}</b>${cmsgs().length && cmsgs()[cmsgs().length - 1].role === "user" ? `<div><button class="btn small" data-act="chatRetry">Try again</button></div>` : ""}</div></div>` : ""}
     ${!cmsgs().length && !chat.busy ? `<div class="row" style="flex-wrap:wrap">${STARTERS.map(s => `<button class="btn ghost small starter" data-act="chatStarter" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
     </div>
-    <div class="chatin"><textarea id="lehrerIn" class="field ${dict ? "live" : ""}" rows="2" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : "autofocus"}>${esc(chat.draft)}</textarea>
+    <div class="chatin"><textarea id="lehrerIn" class="field ${dict ? "live" : ""}" rows="1" placeholder="Schreib mir … (Enter sends)" ${chat.busy ? "disabled" : ""}>${esc(chat.draft)}</textarea>
       ${dict ? `<div class="recording" role="status"><span class="dot"></span> Recording… speak German, tap Stop when you're done</div>` : ""}
       <div class="row">${micBlocked ? "" : dict ? `<button class="btn rec-stop" data-act="chatMic" aria-label="Stop recording">■ Stop</button>` : `<button class="icon-btn" data-act="chatMic" aria-label="Start recording">${ICON.mic}</button>`}<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="chatIns" data-ch="${u}">${u}</button>`).join("")}</div><button class="btn primary" data-act="chatSend" ${chat.busy ? "disabled" : ""}>Send</button></div></div>
-    ${cmsgs().length ? `<button class="linkbtn small" data-act="chatNew" ${chat.busy ? "disabled" : ""}>New conversation (this one is kept, and my notes stay)</button>` : ""}
   </section>
-  ${memoryPanel()}
+  ${lessonNudge()}${memoryPanel()}
   <details class="panel"><summary class="small">Use my Claude or ChatGPT subscription instead</summary>${sub}</details>`;
 }
 async function chatSend(text, retry) {
@@ -8015,7 +8044,7 @@ const A = {
   chatNew: () => { if (chat.busy) return; if (dict) stopDictation(); const c = { id: Date.now(), t: Date.now(), msgs: [] }; curChat(); S.chats.push(c); S.chatId = c.id; chat.err = null; chat.draft = ""; saveChat(); render(); },
   chatOpen: d => { if (chat.busy) return; if (dict) stopDictation(); S.chatId = +d.id; chat.err = null; chat.histOpen = false; saveChat(); render(); const l = $("#chatlog"); if (l) l.scrollTop = l.scrollHeight; },
   chatDel: d => { S.chats = (S.chats || []).filter(c => c.id !== +d.id); if (S.chatId === +d.id) S.chatId = null; chat.histOpen = true; saveChat(); render(); },
-  histToggle: (d, el) => { chat.histOpen = el.parentElement.open = !el.parentElement.open; },
+  histToggle: () => { chat.histOpen = !chat.histOpen; render(); },
   copyTeacher: () => navigator.clipboard?.writeText(subPrompt()).then(() => toast("Copied. Paste it into Claude or ChatGPT."), () => toast("Couldn't copy")),
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),

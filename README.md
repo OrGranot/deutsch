@@ -18,7 +18,7 @@ Or's private German course, A1 to B2: a guided daily lesson with spaced repetiti
 
 ## Lehrer (AI teacher)
 
-The Lehrer tab is a chat with a German teacher that gets a short learner profile with every message: level, current lesson and grammar, words Or keeps missing, wrong articles, and recent word and exercise mistakes (`learnerProfile()` in `src/app.js`).
+The Lehrer tab is a full-screen chat (a slim bar with the model, past chats and New on top, the input at the bottom, sized by `fitChat()`) with a German teacher that gets a short learner profile with every message: level, current lesson and grammar, words Or keeps missing, wrong articles, and recent word and exercise mistakes (`learnerProfile()` in `src/app.js`).
 
 - Without setup it offers "Open in Claude" / "Open in ChatGPT", which start a chat on Or's own subscription with the teacher instructions and profile filled in.
 - The in-app chat calls the Supabase function in `supabase/functions/lehrer/`, which holds the model API keys and only answers Or's account. Each key set under Edge Functions → Secrets adds a model to the picker in the Lehrer tab: `GEMINI_API_KEY` (Gemini 3.8 Flash, free tier), `MOONSHOT_API_KEY` (Kimi K3), `ANTHROPIC_API_KEY` (Claude Sonnet 5.5). Deploy with `supabase functions deploy lehrer`, or paste `index.ts` into a new function named `lehrer` in the dashboard.
