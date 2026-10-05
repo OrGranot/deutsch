@@ -267,6 +267,104 @@ function sayDevice(text, rate) {
   const v = pickVoice(); if (v) u.voice = v;
   u.rate = rate || S.settings.rate; synth.speak(u);
 }
+// Thorsten for sentences that have no recording (Lehrer's replies): the same voice, as a Piper
+// model running on the device in a worker. The first use downloads it (about 90 MB with the
+// speech engine); the browser keeps it, so later it works offline. Device voice until it's ready.
+const TTS_BASE = window.TTS_BASE || {
+  ort: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/",
+  phon: "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/",
+  model: "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx",
+};
+const TTS_WORKER = `
+let session, cfg;
+const progress = {};
+async function get(url) {
+  const cache = self.caches ? await caches.open("thorsten-v1").catch(() => null) : null;
+  const hit = cache && await cache.match(url); if (hit) return hit;
+  const r = await fetch(url); if (!r.ok) throw new Error("download " + r.status);
+  const total = +r.headers.get("content-length") || 0, rd = r.body.getReader(), parts = []; let got = 0;
+  for (;;) { const { value, done } = await rd.read(); if (done) break; parts.push(value); got += value.length; progress[url] = [got, total]; postMessage({ type: "progress", p: Object.values(progress) }); }
+  const blob = new Blob(parts);
+  if (cache) await cache.put(url, new Response(blob)).catch(() => {});
+  return new Response(blob);
+}
+function phonemize(base, text) {
+  return new Promise((res, rej) => {
+    const tm = setTimeout(() => rej(new Error("phonemize timeout")), 8000);
+    createPiperPhonemize({ print: l => { try { const ids = JSON.parse(l).phoneme_ids; if (ids) { clearTimeout(tm); res(ids); } } catch (e) {} }, printErr: () => {}, locateFile: f => base.phon + f })
+      .then(m => m.callMain(["-l", cfg.espeak.voice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"])).catch(e => { clearTimeout(tm); rej(e); });
+  });
+}
+self.onmessage = async e => {
+  const { id, type, base, text, speed } = e.data;
+  try {
+    if (type === "init") {
+      importScripts(base.ort + "ort.wasm.min.js", base.phon + "piper_phonemize.js");
+      ort.env.wasm.wasmPaths = base.ort; ort.env.wasm.numThreads = 1;
+      cfg = await (await get(base.model + ".json")).json();
+      const model = new Uint8Array(await (await get(base.model)).arrayBuffer());
+      session = await ort.InferenceSession.create(model);
+      return postMessage({ id, ok: true });
+    }
+    const ids = await phonemize(base, text), inf = cfg.inference;
+    const out = await session.run({
+      input: new ort.Tensor("int64", BigInt64Array.from(ids, BigInt), [1, ids.length]),
+      input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]),
+      scales: new ort.Tensor("float32", Float32Array.from([inf.noise_scale, inf.length_scale / (speed || 1), inf.noise_w]), [3]),
+    });
+    const pcm = out.output.data;
+    postMessage({ id, pcm, rate: cfg.audio.sample_rate }, [pcm.buffer]);
+  } catch (err) { postMessage({ id, err: String((err && err.message) || err) }); }
+};`;
+const tts = { st: "off", pct: 0, w: null, n: 0, wait: {} };
+const ttsOn = () => S.settings.freeVoice !== "device" && !S.settings.deviceVoice;
+function ttsCall(msg, transfer) {
+  return new Promise((res, rej) => { const id = ++tts.n; tts.wait[id] = { res, rej }; tts.w.postMessage({ ...msg, id, base: TTS_BASE }, transfer || []); });
+}
+function ttsInit() {
+  if (tts.st !== "off" || !ttsOn() || !window.Worker) return;
+  tts.st = "loading";
+  try { tts.w = new Worker(URL.createObjectURL(new Blob([TTS_WORKER], { type: "text/javascript" }))); }
+  catch (e) { tts.st = "failed"; return; }
+  tts.w.onmessage = e => {
+    const d = e.data;
+    if (d.type === "progress") {
+      const [got, tot] = d.p.reduce((a, [g, t]) => [a[0] + g, a[1] + (t || g)], [0, 0]);
+      tts.pct = Math.min(99, Math.round(100 * got / Math.max(tot, 9e7)));
+      const el = $("#ttsNote"); if (el) el.textContent = ttsNote();
+      return;
+    }
+    const w = tts.wait[d.id]; if (!w) return; delete tts.wait[d.id];
+    d.err ? w.rej(new Error(d.err)) : w.res(d);
+  };
+  tts.w.onerror = () => { tts.st = "failed"; for (const k in tts.wait) tts.wait[k].rej(new Error("worker")); tts.wait = {}; };
+  ttsCall({ type: "init" }).then(() => { tts.st = "ready"; const el = $("#ttsNote"); if (el) el.textContent = ""; })
+    .catch(e => { console.warn("Thorsten voice:", e.message); tts.st = "failed"; const el = $("#ttsNote"); if (el) el.textContent = ""; });
+}
+const ttsNote = () => tts.st === "loading" ? `Loading the Thorsten voice${tts.pct ? ` (${tts.pct}%)` : ""}: your device voice speaks until then.` : "";
+// a sentence as WAV audio in the Thorsten voice; rejects when it isn't available
+async function ttsWav(text, rate) {
+  if (tts.st !== "ready") throw new Error("not ready");
+  const { pcm, rate: sr } = await ttsCall({ type: "say", text, speed: rate || S.settings.rate || 1 });
+  const v = new DataView(new ArrayBuffer(44 + pcm.length * 2)), w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 32767, true);
+  return URL.createObjectURL(new Blob([v.buffer], { type: "audio/wav" }));
+}
+function playUrl(url) {
+  if (player) player.pause();
+  if (synth) synth.cancel();
+  player = new Audio(url);
+  return player.play().then(() => player);
+}
+// free text (not from the course): Thorsten when it's loaded, the device voice otherwise
+function sayFree(text, rate) {
+  if (!S.settings.deviceVoice && hasClip(text)) return say(text, rate);
+  ttsInit();
+  if (tts.st !== "ready") return sayDevice(text, rate);
+  ttsWav(text, rate).then(playUrl).catch(() => sayDevice(text, rate));
+}
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let micBlocked = !SR, rec = null;
 function listen(onInterim) {
@@ -584,7 +682,7 @@ async function weeklyRun(t) {
     const m = await askLehrer([{ role: "user", content: weeklyBrief(t.st) }]);
     if (task() !== t) return;
     w.text = m.content.trim(); weeklySave(t, w.text, m.by);
-    sayDevice(w.text.split("\n")[0].replace(/\*\*?/g, ""));
+    sayFree(w.text.split("\n")[0].replace(/\*\*?/g, ""));
   } catch (e) {
     if (task() !== t) return;
     w.text = weeklyLocal(t.st); w.note = e.off ? "" : "Lehrer couldn't be reached, so this one comes from your numbers."; weeklySave(t, w.text, "app");
@@ -1617,16 +1715,26 @@ function convoSentences(s, partial) {
 }
 // A queue so a streamed answer is spoken sentence by sentence while the rest arrives. A sentence
 // with a recorded clip uses the Thorsten recording; the rest goes to the device voice.
+// Thorsten audio for the next sentence is made while the current one plays.
 const sq = { items: [], busy: false, gen: 0 };
 function sqStop() { sq.gen++; sq.items = []; sq.busy = false; if (synth) synth.cancel(); if (player) player.pause(); }
-function sqAdd(text) { sq.items.push(text); if (!sq.busy) sqRun(sq.gen); }
+function sqAdd(text) {
+  const clip = !S.settings.deviceVoice && hasClip(text);
+  if (!clip) ttsInit();
+  sq.items.push({ text, clip, wav: !clip && tts.st === "ready" ? ttsWav(text).catch(() => null) : null });
+  if (!sq.busy) sqRun(sq.gen);
+}
 async function sqRun(g) {
   sq.busy = true;
   while (sq.items.length && g === sq.gen) {
-    const s = sq.items.shift();
+    const { text, clip, wav } = sq.items.shift();
+    const url = wav && await wav;
+    if (g !== sq.gen) break;
     await new Promise(res => {
-      if (!S.settings.deviceVoice && hasClip(s)) return playClip(s).then(p => { p.onended = res; p.onerror = res; }).catch(() => utter(s, res));
-      utter(s, res);
+      const ends = p => { p.onended = res; p.onerror = res; };
+      if (clip) return playClip(text).then(ends).catch(() => utter(text, res));
+      if (url) return playUrl(url).then(ends).catch(() => utter(text, res));
+      utter(text, res);
     });
   }
   if (g === sq.gen) sq.busy = false;
@@ -1731,7 +1839,8 @@ function tConvo(t) {
   if (!cv.msgs.length && !cv.busy && !cv.err) setTimeout(() => task() === t && !cv.busy && !cv.msgs.length && convoNext(t), 0);
   const log = cv.msgs.map((m, i) => m.role === "assistant" ? convoBubble(m, i, cv) : `<div class="me"><div class="bubble">${esc(m.content)}</div></div>`).join("");
   const live = cmic && cmic.t === t;
-  return `<span class="label">Gespräch mit Lehrer · ${Math.min(cv.turns, CONVO_TURNS)} of ${CONVO_TURNS}</span>
+  ttsInit();
+  return `<span class="label">Gespräch mit Lehrer · ${Math.min(cv.turns, CONVO_TURNS)} of ${CONVO_TURNS}</span><div class="small muted" id="ttsNote">${ttsNote()}</div>
     <div class="convo-log">${log}${cv.busy ? `<div id="convoLive">${convoBubble(cv.live || { content: "", live: true }, -1, cv)}</div>` : ""}${live ? `<div class="me"><div class="bubble draft" id="convoDraft">${esc(joinText(cmic.base, cmic.interim)) || "…"}</div></div>` : ""}</div>
     ${cv.err ? verdictHTML({ v: "bad", title: cv.err, detail: `<button class="btn small" data-act="convoRetry">Try again</button>` }) : ""}
     ${cv.done ? nextBtn() : cv.busy || cv.err ? "" : micBlocked ? `${micOrType("teachConvo", "Antworte auf Deutsch …")}<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`
@@ -1988,8 +2097,9 @@ function vStats() {
   ${g.length ? `<section class="panel"><span class="label">Articles you mix up</span><div class="chips">${g.map(([id, x]) => `<span class="chip">${playBtn(WORDS[id].de)}${deHTML(WORDS[id])} <span class="muted small">${x.w}× wrong</span></span>`).join("")}</div></section>` : ""}
   <section class="panel"><h2>Settings</h2>
     <div class="row between"><label for="rate">Speech speed</label><select id="rate" data-set="rate">${[[0.7, "Slow"], [0.85, "Calm"], [0.9, "Learner"], [1, "Normal"]].map(([v, l]) => `<option value="${v}" ${S.settings.rate === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-    <div class="row between"><label for="voice">German voice</label><select id="voice" data-set="voice"><option value="">Automatic</option>${voices.map(v => `<option value="${esc(v.voiceURI)}" ${S.settings.voice === v.voiceURI ? "selected" : ""}>${esc(v.name)} (${esc(v.lang)})</option>`).join("")}</select></div>
-    <div class="row"><button class="btn" data-act="say" data-text="Hallo! Schön, dass du Deutsch lernst. Wie geht es dir?">${ICON.play} Test voice</button></div>
+    <div class="row between"><label for="freeVoice">Lehrer's voice</label><select id="freeVoice" data-set="freeVoice"><option value="">Thorsten (natural, about 90 MB once)</option><option value="device" ${S.settings.freeVoice === "device" ? "selected" : ""}>Device voice</option></select></div>
+    <div class="row between"><label for="voice">Device voice</label><select id="voice" data-set="voice"><option value="">Automatic</option>${voices.map(v => `<option value="${esc(v.voiceURI)}" ${S.settings.voice === v.voiceURI ? "selected" : ""}>${esc(v.name)} (${esc(v.lang)})</option>`).join("")}</select></div>
+    <div class="row"><button class="btn" data-act="say" data-text="Hallo! Schön, dass du Deutsch lernst. Wie geht es dir?">${ICON.play} Test device voice</button><button class="btn" data-act="sayFree" data-text="Hallo Or! Schön, dass du heute wieder Deutsch übst. Was hast du am Wochenende gemacht?">${ICON.play} Test Lehrer's voice</button></div>
     ${voices.length ? "" : `<p class="note">No German voice found on this device. On Windows, add German under Settings › Time & language › Speech; on a phone, install German text-to-speech in the system settings.</p>`}
   </section>
   ${remindSettings()}
@@ -2291,7 +2401,7 @@ const A = {
   chatSend: () => chatSend(),
   chatRetry: () => chatSend(null, true),
   chatStarter: d => chatSend(d.text),
-  chatSay: d => sayDevice(cmsgs()[+d.i].content.replace(/\*\*?|\([^)]*\)/g, "")),
+  chatSay: d => sayFree(cmsgs()[+d.i].content.replace(/\*\*?|\([^)]*\)/g, "")),
   chatMic: () => chatMic(),
   chatIns: d => { const i = $("#lehrerIn"); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + d.ch + i.value.slice(p); chat.draft = i.value; i.focus(); i.setSelectionRange(p + 1, p + 1); },
   noteDel: d => { tnotes().splice(+d.i, 1); save(); render(); },
@@ -2324,6 +2434,7 @@ const A = {
   convoSend: () => convoSend(),
   nav: d => { if (dict) stopDictation(); if (cmic) convoStopMic(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
+  sayFree: d => sayFree(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },
   startLesson: d => { S.lessons[d.id] = { ...(S.lessons[d.id] || {}), started: Date.now() }; save(); toast(`${LESSON[d.id].words.length} words added to your cards`); lessonTab = "words"; render(); },
@@ -2416,7 +2527,7 @@ document.addEventListener("click", e => {
 document.addEventListener("input", e => { if (e.target.id === "lehrerIn") { chat.draft = e.target.value; if (dict) { dict.base = e.target.value; dict.interim = ""; } } });
 document.addEventListener("change", e => {
   const k = e.target.dataset.set; if (!k) return;
-  S.settings[k] = k === "voice" || k === "lehrerModel" ? e.target.value : +e.target.value; save(); toast("Saved");
+  S.settings[k] = k === "voice" || k === "lehrerModel" || k === "freeVoice" ? e.target.value : +e.target.value; save(); toast("Saved");
 });
 document.addEventListener("keydown", e => {
   const cel = document.querySelector(".celebrate");
