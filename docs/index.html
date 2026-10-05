@@ -346,6 +346,7 @@ a.btn { text-decoration: none; color: inherit; }
 .jseg.hi .bar { box-shadow: 0 0 0 2px var(--accent); }
 .weekgoal { display: grid; gap: 4px; width: 100%; max-width: 520px; text-align: left; background: var(--warn-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; }
 section.weekgoal { max-width: none; border-radius: var(--r); padding: 14px 18px; }
+.exspeak { display: grid; justify-items: center; gap: 6px; margin: 4px 0; }
 </style>
 <script src="config.js"></script>
 </head>
@@ -5652,7 +5653,7 @@ try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch (e) { S = fr
 S = Object.assign(fresh(), S);
 // scores saved before lesson steps existed still count as a passed exercise step
 for (const [id, sc] of Object.entries(S.ex || {})) { const L = LESSONS.find(x => x.id === +id); if (L && sc >= Math.ceil(L.ex.length * 0.7)) { const st = (S.lessons[id] ||= {}); st.parts ||= {}; st.parts.ex ||= Date.now(); } }
-const save = () => { S.updatedAt = Date.now(); try { S.where = whereNow(); } catch (e) {} try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} queueSync(); };
+const save = () => { S.updatedAt = Date.now(); try { S.where = whereNow(); } catch (e) {} try { if (T) S.run = runSnap(); } catch (e) {} try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} queueSync(); };
 const day = () => (S.days[today()] ||= { rev: 0, ok: 0, nw: 0, spoke: 0 });
 const started = () => LESSONS.filter(L => S.lessons[L.id]?.started).map(L => L.id);
 const card = id => S.cards[id] || { s: "new", step: 0, due: 0, ivl: 0, ease: 2.5, reps: 0, fails: 0, lapses: 0, cons: 0 };
@@ -5948,7 +5949,13 @@ function vHome() {
   const greet = hour < 11 ? "Guten Morgen, Or!" : hour < 18 ? "Guten Tag, Or!" : "Guten Abend, Or!";
   const doneToday = (d.lessons || 0) > 0;
   let label, items, btn, note;
-  if (!c.placed) {
+  const run = savedRun();
+  if (run) {
+    const at = run.tasks[run.i], part = [...run.tasks.slice(0, run.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
+    label = `Paused · ${PART[part] ? PART[part].replace(/<[^>]+>/g, "") : esc(part)}`;
+    btn = "Continue where I stopped"; items = pathSteps(run.tasks);
+    note = `${Math.round(100 * run.i / Math.max(1, run.tasks.length - 1))}% done. ${at && at.type === "intro" ? "We start with the next part." : "We pick up at the same exercise."}`;
+  } else if (!c.placed) {
     label = "First: find your level"; btn = "Start the check";
     items = ["About 10 questions per level, starting with A1", "80% on a level and we try the next one", "Then I plan your lessons from there"];
     note = "About 5 minutes. No mic needed.";
@@ -5971,7 +5978,7 @@ function vHome() {
   ${weeklyHome()}
   <section class="panel today">
     <span class="label">${label}</span>
-    ${c.placed && !c.check ? teacherSays(doneToday ? "Good work today. If you want more, I've planned another lesson." : "Here's today's plan. Tap Start and I'll take you through it, one step at a time.") : ""}
+    ${run ? teacherSays("You stopped in the middle of the lesson. Tap Continue and we pick up right where you left off.") : c.placed && !c.check ? teacherSays(doneToday ? "Good work today. If you want more, I've planned another lesson." : "Here's today's plan. Tap Start and I'll take you through it, one step at a time.") : ""}
     <ol class="plan ${c.placed && !c.check ? "path" : ""}">${items.map(x => `<li>${x}</li>`).join("")}</ol>
     <button class="btn primary big" data-act="teachStart" autofocus>${ICON.mic} ${btn}</button>
     <p class="small muted">${note}</p>
@@ -6757,6 +6764,7 @@ function planSession() {
   return { tasks, plan, mode: "lesson" };
 }
 function startTeach() {
+  if (resumeRun()) return;
   const c = course();
   if (!c.placed) return startPlacement();
   if (c.check) return startLevelCheck(c.check);
@@ -6779,7 +6787,38 @@ function nextTask() {
   if (cur && cur.type === "build" && cur.last && !cur.retest) finishChain(cur.lesson, cur.gi);
   T.i++;
   if (task() && (task().type === "pcheck" || task().type === "lcheck")) evalCheck(task());
-  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.hint = 0; T.retry = null; render(); window.scrollTo(0, 0); onTask(); }
+  if (task() && ["placed", "checked"].includes(task().type)) T.done = true;
+  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.hint = 0; T.retry = null; save(); render(); window.scrollTo(0, 0); onTask(); }
+// ----- resume: the running lesson is saved with the progress (S.run), so closing the app or switching
+// devices picks up at the same step. A step that was answered but not left yet continues after it.
+const RUN_SKIP = ["r", "retry", "prev", "prevSent", "tries", "hint", "done"];
+function runSnap() {
+  if (!T || T.done || !T.tasks) return null;
+  const o = { day: today(), at: Date.now(), answered: !!T.r && ["recall", "ex", "build", "pq"].includes(task()?.type) };
+  for (const k in T) if (!RUN_SKIP.includes(k)) o[k] = T[k];
+  return o;
+}
+function savedRun() {
+  const r = S.run;
+  if (!r || !Array.isArray(r.tasks) || !(r.i < r.tasks.length) || r.tasks[r.i]?.type === "summary") return null;
+  if (r.day !== today() && Date.now() - (r.at || 0) > 4 * 3600e3) return null;
+  const c = course();
+  if (r.mode === "lesson" && (r.lesson !== curLesson().id || c.remedial || c.check || !c.placed)) return null;
+  if (r.mode === "remedial" && !c.remedial) return null;
+  if (r.mode === "check" && !c.check) return null;
+  if (r.mode === "placement" && c.placed) return null;
+  return r;
+}
+function resumeRun() {
+  const r = savedRun(); if (!r) { S.run = null; return false; }
+  const { day: _d, at: _a, answered, ...rest } = r;
+  T = { ...rest, r: null, tries: 0, hint: 0, retry: null };
+  T.tasks.forEach(x => { if (x.cv) { x.cv.busy = false; x.cv.err = null; } });
+  view = "teach";
+  if (answered) return nextTask(), true;
+  render(); window.scrollTo(0, 0); onTask();
+  return true;
+}
 function requeue(t, gap = 3) { if ((t.rn || 0) >= 2) return; T.tasks.splice(Math.min(T.tasks.length - 1, T.i + 1 + gap), 0, { ...t, retest: true, graded: false, rn: (t.rn || 0) + 1 }); }
 
 function vTeach() {
@@ -6817,7 +6856,7 @@ function tLearn(t) {
 function tGrammar(t) { const L = LESSON[t.lesson], g = L.grammar[t.gi]; return `<span class="label">Grammatik · Lektion ${L.id}</span><article class="gram" style="text-align:left;width:100%">${g.html.replace(/<table>/g, '<div class="tablewrap"><table>').replace(/<\/table>/g, "</table></div>")}</article>${nextBtn("Verstanden, check me")}`; }
 function tEx(t) {
   const e = LESSON[t.lesson].ex[t.i], r = T.r;
-  return `<span class="label">${t.review ? `Wiederholung · Lektion ${t.lesson}` : t.retest ? "Once more" : "Check yourself"}</span><div style="width:100%;text-align:left" data-lesson="${t.lesson}">${exHTML(e, t.i)}</div>${r ? verdictHTML(r) + nextBtn() : `<button class="btn primary" data-act="teachExCheck">Check</button>`}`;
+  return `<span class="label">${t.review ? `Wiederholung · Lektion ${t.lesson}` : t.retest ? "Once more" : "Check yourself"}</span><div style="width:100%;text-align:left" data-lesson="${t.lesson}">${exHTML(e, t.i)}</div>${r ? verdictHTML(r) + nextBtn() : `${micBlocked ? "" : `<div class="exspeak"><button class="mic ${rec ? "live" : ""}" data-act="teachExSpeak" aria-label="Say the answer">${ICON.mic}</button><div class="heard" id="heard">${rec ? "Listening…" : e.type === "mc" ? "Tap and say the answer" : "Tap and say the whole sentence"}</div></div>`}<button class="btn primary" data-act="teachExCheck">${micBlocked ? "Check" : e.type === "order" ? "Check the tiles" : e.type === "gap" ? "Check what I typed" : "Check my pick"}</button>`}`;
 }
 function tShadow(t) {
   const r = T.r;
@@ -6847,6 +6886,7 @@ function tSummary() {
     <div class="row" style="justify-content:center"><button class="btn primary" data-act="teachDone">Fertig</button><button class="btn" data-act="teachAgain">Another lesson</button></div>`;
 }
 function finishSession() {
+  T.done = true;
   const L = LESSON[T.lesson], rd = lessonReady(L), st = lessonState(L.id), c = course(); st.parts ||= {};
   if (T.n >= 5) { (c.rates ||= []).push(T.ok / T.n); c.rates = c.rates.slice(-5); }
   if (T.mode === "remedial") {
@@ -7140,7 +7180,76 @@ function tConvo(t) {
     ${cv.err ? verdictHTML({ v: "bad", title: cv.err, detail: `<button class="btn small" data-act="convoRetry">Try again</button>` }) : ""}
     ${cv.done ? nextBtn() : cv.busy || cv.err ? "" : `${micOrType("teachConvo", "Antworte auf Deutsch …")}<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`}`;
 }
-function teachExCheck() {
+// ----- exercises answered out loud: the spoken sentence fills the blanks, picks the option or lays
+// the tiles, then the usual check runs, so the verdict is the same as for a typed answer -----
+const exCore = q => q.replace(/\s*\([^)]*\)\s*$/, "");
+const toks = s => norm(s).split(" ").filter(Boolean);
+const tokEq = (a, b) => a.length === b.length && a.every((x, i) => sameTok(x, b[i]));
+function gapFromSpeech(e, heard) {
+  const segs = exCore(e.q).split("___"), nb = segs.length - 1, h = toks(heard);
+  // show the words as they were heard (ß, capitals), when they line up one to one with the checked ones
+  const raw = String(heard).split(/\s+/).map(w => w.replace(/[.,!?;:"„“”«»()]/g, "")).filter(Boolean), hs = raw.length === h.length ? raw : h;
+  // every right sentence, to recognise a fully right answer even when a blank has alternatives
+  let combos = [[]];
+  for (let k = 0; k < nb; k++) combos = combos.flatMap(c => e.a[k].split("/").map(x => [...c, x.trim()]));
+  for (const c of combos) {
+    if (tokEq(h, toks(segs.map((sg, k) => sg + (k < nb ? " " + c[k] + " " : "")).join("")))) return c;
+    if (tokEq(h, toks(c.join(" ")))) return c; // only the missing words
+  }
+  // otherwise read the blanks off the sentence: align against the first right sentence
+  const c = combos[0], tw = [], slot = [];
+  segs.forEach((sg, k) => { toks(sg).forEach(x => { tw.push(x); slot.push(-1); }); if (k < nb) toks(c[k]).forEach(x => { tw.push(x); slot.push(k); }); });
+  const fixed = tw.filter((_, i) => slot[i] < 0);
+  if (!fixed.some(f => h.some(x => near(f, x)))) { // no sentence words heard: the answer alone
+    const n = c.map(x => toks(x).length); let j = 0;
+    return c.map((_, k) => { const g = k === nb - 1 ? hs.slice(j) : hs.slice(j, j + n[k]); j += n[k]; return g.join(" "); });
+  }
+  const al = align(tw, h), out = c.map(() => []);
+  tw.forEach((_, i) => { if (slot[i] >= 0 && al.got[i]) out[slot[i]].push(hs[h.indexOf(al.got[i])] ?? al.got[i]); });
+  return out.map(x => x.join(" "));
+}
+async function teachExSpeak() {
+  const t = task(), e = LESSON[t.lesson].ex[t.i];
+  try {
+    const a = await getAnswer(); if (!a || task() !== t) return;
+    render();
+    const box = $(`.ex[data-i="${t.i}"]`); if (!box) return;
+    if (e.type === "gap") {
+      // the alternative that fills every blank right wins; else the recogniser's best guess
+      const fills = a.alts.map(h => ({ h, f: gapFromSpeech(e, h) }));
+      const pick = fills.find(x => x.f.every((v, k) => e.a[k].split("/").some(y => norm(y) === norm(v)))) || fills[0];
+      if (pick.f.some(v => !v.trim())) return toast(`I heard “${pick.h}”. Say the whole sentence with the missing word.`);
+      box.querySelectorAll(".gapin").forEach((inp, k) => inp.value = pick.f[k]);
+      return teachExCheck(pick.h);
+    }
+    if (e.type === "mc") {
+      let best = null;
+      for (const h of a.alts) e.opts.forEach((o, k) => {
+        const tg = toks(e.q.includes("___") ? exCore(e.q).replace("___", o) : o), hw = toks(h);
+        const sc = tokEq(hw, toks(o)) ? 1 : align(tg, hw).score;
+        if (!best || sc > best.sc) best = { k, sc, h };
+      });
+      if (!best || best.sc < 0.5) return toast(`I heard “${a.alts[0]}”. Say one of the options.`);
+      box.querySelectorAll(".opt").forEach((o, k) => o.setAttribute("aria-pressed", k === best.k));
+      return teachExCheck(best.h);
+    }
+    if (e.type === "order") {
+      // lay the tiles in the order they were said
+      for (const h of a.alts) {
+        const hw = toks(h), pool = [...box.querySelectorAll(`[data-pool="${t.i}"] .tile`)], line = box.querySelector(`[data-line="${t.i}"]`), seq = [];
+        let j = 0;
+        while (j < hw.length) {
+          const k = pool.findIndex(b => { const bw = toks(b.textContent); return tokEq(hw.slice(j, j + bw.length), bw); });
+          if (k < 0) break;
+          const bw = toks(pool[k].textContent); seq.push(pool.splice(k, 1)[0]); j += bw.length;
+        }
+        if (!pool.length && j === hw.length) { seq.forEach(b => line.append(b)); return teachExCheck(h); }
+      }
+      return toast(`I heard “${a.alts[0]}”. Use all the words once, or tap the tiles.`);
+    }
+  } catch (err) { micError(err); render(); }
+}
+function teachExCheck(heard) {
   const t = task(), e = LESSON[t.lesson].ex[t.i], box = $(`.ex[data-i="${t.i}"]`); let ok = false, answered = true;
   if (e.type === "mc") { const p = box.querySelector('[aria-pressed="true"]'); if (!p) answered = false; else { box.querySelectorAll(".opt").forEach((o, k) => { o.classList.toggle("right", k === e.a); if (o === p && k !== e.a) o.classList.add("wrong"); }); ok = +p.dataset.k === e.a; } }
   if (e.type === "gap") { const ins = [...box.querySelectorAll(".gapin")]; if (ins.some(i => !i.value.trim())) answered = false; else ok = ins.every((inp, k) => e.a[k].split("/").some(x => norm(x) === norm(inp.value))); }
@@ -7150,12 +7259,15 @@ function teachExCheck() {
   T.n++;
   if (ok) { T.ok++; course().exOk[t.lesson + ":" + t.i] = Date.now(); addXP(t.retest ? 2 : 5); chime(false); }
   else { requeue(t, 2); logMiss({ ex: t.lesson + ":" + t.i, got: e.type === "mc" ? e.opts[+box.querySelector('[aria-pressed="true"]').dataset.k] : e.type === "gap" ? [...box.querySelectorAll(".gapin")].map(i => i.value.trim()).join(" … ") : [...box.querySelectorAll(`[data-line="${t.i}"] .tile`)].map(x => x.textContent).join(" ") }); }
-  T.r = ok ? { v: "ok", title: "Richtig!", detail: e.why ? esc(e.why) : "" } : { v: "bad", title: "Not quite", detail: `Correct: <b>${esc(full)}</b>${e.why ? `<br>${esc(e.why)}` : ""}<br><span class="muted">You'll get this one again in a moment.</span>` };
+  const said = heard ? `I heard: “${esc(heard)}”` : "";
+  T.r = ok ? { v: "ok", title: "Richtig!", detail: [said, e.why ? esc(e.why) : ""].filter(Boolean).join("<br>") } : { v: "bad", title: "Not quite", detail: `${said ? said + "<br>" : ""}Correct: <b>${esc(full)}</b>${e.why ? `<br>${esc(e.why)}` : ""}<br><span class="muted">You'll get this one again in a moment.</span>` };
   if (e.type === "gap") box.querySelectorAll(".gapin").forEach((inp, k) => { const r = e.a[k].split("/").some(x => norm(x) === norm(inp.value)); inp.classList.add(r ? "right" : "wrong"); inp.readOnly = true; });
   box.querySelectorAll("button").forEach(b => b.disabled = true);
   save();
   // keep the learner's answer on screen and show the verdict under it
+  $(".exspeak")?.remove();
   const btn = $('[data-act="teachExCheck"]'); if (btn) btn.outerHTML = verdictHTML(T.r) + nextBtn();
+  if (heard && ok) say(full);
   $('[data-act="teachNext"]')?.focus();
 }
 
@@ -7632,7 +7744,7 @@ const A = {
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
   teachNext: () => nextTask(),
-  teachEnd: () => { if (rec) rec.abort(); T = null; view = "home"; render(); },
+  teachEnd: () => { if (rec) rec.abort(); const paused = T && !T.done && T.i > 0; save(); T = null; view = "home"; render(); if (paused) toast("Paused. Continue any time, on any device."); },
   teachDone: () => { closeCel(); T = null; view = "home"; render(); window.scrollTo(0, 0); },
   teachAgain: () => { closeCel(); startTeach(); },
   teachListen: () => teachListen(false), teachListenType: () => teachListen(false),
@@ -7640,7 +7752,7 @@ const A = {
   teachShadow: () => teachShadow(), teachShadowType: () => teachShadow(),
   teachTalk: () => teachTalk(), teachTalkType: () => teachTalk(),
   teachDontKnow: () => teachDontKnow(), teachOverride: () => teachOverride(),
-  teachExCheck: () => teachExCheck(),
+  teachExCheck: () => teachExCheck(), teachExSpeak: () => teachExSpeak(),
   teachBuild: () => teachBuild(), teachBuildType: () => teachBuild(),
   teachBuildHint: () => { T.hint++; render(); $("#typein")?.focus(); },
   teachBuildShow: () => teachBuildShow(), teachBuildOverride: () => teachBuildOverride(),
@@ -7750,7 +7862,7 @@ document.addEventListener("keydown", e => {
   if (cel) { if (e.key === "Escape") { e.preventDefault(); closeCel(); } return; }
   if (view === "teach" && T) {
     if (e.key !== "Enter" && !(e.key === " " && !e.target.matches("input, textarea"))) return;
-    const b = $('#main [data-act="teachNext"]') || $('#main [data-act$="Type"]') || $('#main .mic') || $('#main [data-act="teachExCheck"]');
+    const b = $('#main [data-act="teachNext"]') || $('#main [data-act$="Type"]') || (e.target.matches(".gapin") && $('#main [data-act="teachExCheck"]')) || $('#main .mic') || $('#main [data-act="teachExCheck"]');
     if (b && !(e.key === "Enter" && e.target.matches("button"))) { e.preventDefault(); b.click(); }
     return;
   }

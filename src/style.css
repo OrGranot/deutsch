@@ -333,3 +333,4 @@ a.btn { text-decoration: none; color: inherit; }
 .jseg.hi .bar { box-shadow: 0 0 0 2px var(--accent); }
 .weekgoal { display: grid; gap: 4px; width: 100%; max-width: 520px; text-align: left; background: var(--warn-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; }
 section.weekgoal { max-width: none; border-radius: var(--r); padding: 14px 18px; }
+.exspeak { display: grid; justify-items: center; gap: 6px; margin: 4px 0; }
