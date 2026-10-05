@@ -314,6 +314,12 @@ a.btn { text-decoration: none; color: inherit; }
 .lpath span.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .convo-log { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
 .convo-log .teacher { max-width: none; }
+.convo-log .bubble .help { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); color: var(--muted); font-size: .92rem; }
+.convo-log .bubble .tools { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.convo-log .reveal { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--muted); font: inherit; font-size: .82rem; cursor: pointer; }
+.convo-log .reveal:hover { color: var(--ink); border-color: var(--muted); }
+.convo-log .ms { margin-left: auto; font-size: .75rem; color: var(--muted); }
+.convo-log .me .bubble.draft { opacity: .75; font-style: italic; }
 
 /* daily goal, streak and the way to B2 */
 .celsub { display: grid; gap: 10px; justify-items: center; }

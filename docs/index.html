@@ -327,6 +327,12 @@ a.btn { text-decoration: none; color: inherit; }
 .lpath span.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .convo-log { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
 .convo-log .teacher { max-width: none; }
+.convo-log .bubble .help { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); color: var(--muted); font-size: .92rem; }
+.convo-log .bubble .tools { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.convo-log .reveal { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--muted); font: inherit; font-size: .82rem; cursor: pointer; }
+.convo-log .reveal:hover { color: var(--ink); border-color: var(--muted); }
+.convo-log .ms { margin-left: auto; font-size: .75rem; color: var(--muted); }
+.convo-log .me .bubble.draft { opacity: .75; font-style: italic; }
 
 /* daily goal, streak and the way to B2 */
 .celsub { display: grid; gap: 10px; justify-items: center; }
@@ -5831,8 +5837,11 @@ const loadVoices = () => { voices = synth ? synth.getVoices().filter(v => /^de/i
 if (synth) { loadVoices(); synth.onvoiceschanged = () => { loadVoices(); if (view === "stats") render(); }; }
 function pickVoice() {
   if (S.settings.voice) { const v = voices.find(v => v.voiceURI === S.settings.voice); if (v) return v; }
-  return voices.find(v => /de-DE/i.test(v.lang) && /google|anna|helena|katja|petra|neural|natural/i.test(v.name)) || voices.find(v => /de-DE/i.test(v.lang)) || voices[0];
+  return [...voices].sort((a, b) => voiceRank(b) - voiceRank(a))[0];
 }
+// the most natural German voice the device has: neural/online/premium voices first, robotic ones last
+const voiceRank = v => { const n = v.name + " " + v.voiceURI;
+  return (/natural|neural|online|premium|enhanced|verbessert/i.test(n) ? 8 : 0) + (/google/i.test(n) ? 4 : 0) + (/anna|helena|katja|petra|seraphina|amala|vicki/i.test(n) ? 2 : 0) + (/de-DE/i.test(v.lang) ? 1 : 0) - (/espeak|compact|eloquence|grandma|grandpa|rocko|shelley|flo|eddy|reed|sandy/i.test(n) ? 10 : 0); };
 // Recorded audio: every word and sentence was pre-generated with a natural German voice
 // (Thorsten, CC0). Clips live in per-lesson packs; device text-to-speech is only a fallback.
 const audioKey = t => { let h = 0x811c9dc5; for (const c of String(t).trim()) { h ^= c.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
@@ -6819,6 +6828,7 @@ function onTask() {
 }
 function nextTask() {
   if (rec) rec.abort();
+  if (cmic) convoStopMic();
   const cur = task();
   if (cur && cur.type === "learn" && !S.cards[cur.id]) addCard(cur.id);
   if (cur && cur.type === "grammar") { const c = course(); c.gi[cur.lesson] = Math.max(c.gi[cur.lesson] || 0, cur.gi + 1); save(); }
@@ -7151,16 +7161,31 @@ function tBuild(t) {
 // Runs on the same Supabase function as the Lehrer tab. The lesson brief goes in as the first
 // (hidden) message, so no server change is needed. Skipped quietly when the teacher isn't set up.
 const CONVO_TURNS = 4;
-async function askLehrer(msgs) {
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3);
+// opts.fast/opts.stream: the quick conversation setup; the answer streams in and opts.onText gets the
+// text so far. An older server answers with JSON as before, so this works before the function is updated.
+async function askLehrer(msgs, opts = {}) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90e3), t0 = performance.now();
   try {
     if (!(await freshToken())) throw new Error("Sign in again to talk to your teacher.");
-    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: msgs.map(({ role, content }) => ({ role, content })), profile: learnerProfile() }) });
+    const r = await fetch(CFG.url + "/functions/v1/lehrer", { method: "POST", signal: ctl.signal, headers: { apikey: CFG.key, Authorization: "Bearer " + auth.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ provider: S.settings.lehrerModel || "", messages: msgs.map(({ role, content }) => ({ role, content })), profile: learnerProfile(), fast: !!opts.fast, stream: !!opts.stream }) });
+    if (r.ok && /text\/plain/.test(r.headers.get("content-type") || "") && r.body) {
+      const rd = r.body.getReader(), dec = new TextDecoder();
+      let text = "", ms = 0;
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        text += dec.decode(value, { stream: true });
+        if (!ms && text.trim()) ms = performance.now() - t0;
+        opts.onText && opts.onText(text.replace(/\n?\[\[FEHLER\]\]/g, ""));
+      }
+      const broken = text.includes("[[FEHLER]]"); text = text.replace(/\n?\[\[FEHLER\]\]/g, "").trim();
+      if (!text) throw new Error(broken ? "The teacher stopped answering. Try again." : "The teacher sent an empty answer.");
+      return { content: text, by: r.headers.get("X-Provider") || "", ms: Math.round(ms) };
+    }
     const d = await r.json().catch(() => ({}));
     if (r.status === 404 || d.error === "not_configured") { chat.off = true; chat.providers = []; const e = new Error("off"); e.off = true; throw e; }
     if (!r.ok || !d.reply) throw new Error(d.error || d.message || `The teacher couldn't answer (error ${r.status}).`);
     applyMemory(d.memory); save();
-    return { content: d.reply, by: d.provider };
+    return { content: d.reply, by: d.provider, ms: Math.round(performance.now() - t0) };
   } catch (e) { throw e.name === "AbortError" ? new Error("No answer after 90 seconds.") : e; } finally { clearTimeout(timer); }
 }
 function convoBrief() {
@@ -7170,54 +7195,156 @@ function convoBrief() {
   return `[Lesson conversation. This message comes from the app, not from Or. Your replies appear in Or's daily lesson and the German is read aloud.]
 Today's lesson: ${L.level} Lektion ${L.id} "${L.title}" (${L.en || ""}). Grammar: ${L.grammar[gi]?.t || L.grammar[0].t}.
 New words today: ${T.learned.length ? T.learned.map(id => WORDS[id].de).join(", ") : "none (review lesson)"}.${built.length ? `\nSentences Or built today: ${built.join(" / ")}` : ""}
-Hold a short spoken conversation with Or about this lesson's topic, using today's words and grammar, at Or's level (see the profile).
-- One short question per message: at most two simple German sentences at A1/A2, a bit more from B1.
-- Put any English help on its own last line, in round brackets. No lists, no headings.
-- When Or answers: react to what Or said in one German sentence. If there is a mistake, give Or's sentence corrected with the change in **bold**, and the rule in a few English words in the bracket line. One correction at most. Then ask the next question, building on Or's answer and nudging Or to say a little more each time.
+Hold a short spoken conversation with Or about this lesson's topic, using today's words and grammar, at Or's level (see the profile). Make it feel like a real conversation between two people, not a quiz.
+- Speak German only: one or two short sentences per message at A1/A2, a little more from B1. No emojis or smileys, no lists, no headings: everything is read aloud.
+- End every message with one line in round brackets: the English translation of your message (Or sees it only on request). That line is the only English.
+- When Or answers: react to what Or said, like a person would, in one German sentence. If there is a mistake, say Or's sentence correctly with the change in **bold**, and add the rule in a few English words to the bracket line. One correction at most. Then ask the next question, building on Or's answer and nudging Or to say a little more each time.
 - After Or's ${CONVO_TURNS}th answer, don't ask anything new: give a warm one-line wrap-up in German, put the one thing to practise in the bracket line, and end with [ENDE].
 Start now: greet Or briefly and ask the first question.`;
 }
-const convoSpeak = s => sayDevice(s.replace(/\[ENDE\]/g, "").replace(/\([^)]*\)/g, "").replace(/\*\*?/g, "").trim());
-const convoShow = s => mdLite(s.replace(/\[ENDE\]/g, "").trim());
+// emoji and smileys never get shown or read out, even when a model adds them
+const unEmoji = s => String(s).replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}‍️⃣]/gu, "").replace(/(^|\s)[:;]-?[)(DP](?=\s|$)/g, "$1").replace(/[ \t]{2,}/g, " ").replace(/ +([.,!?])/g, "$1");
+// A teacher message is German plus English help in round brackets; the help stays hidden until Or taps it.
+function convoParts(s, partial) {
+  s = unEmoji(s).replace(/\[ENDE\]/g, "");
+  if (partial) s = s.replace(/\[[^\]]*$/, "");
+  const help = [];
+  let de = s.replace(/\(([^)]*)\)/g, (_, h) => (help.push(h.trim()), " "));
+  if (partial) de = de.replace(/\([^)]*$/, ""); // the English is still arriving
+  else if (/\(/.test(de)) { help.push(de.slice(de.indexOf("(") + 1).trim()); de = de.slice(0, de.indexOf("(")); }
+  return { de: de.split("\n").map(l => l.trim()).filter(Boolean).join("\n"), help: help.filter(Boolean).join("\n") };
+}
+// spoken sentences: complete ones only while the answer is still streaming in
+function convoSentences(s, partial) {
+  const de = convoParts(s, partial).de.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
+  const out = [], re = /[^.!?…]+[.!?…]+["“”»«]?/g; let m, end = 0;
+  while ((m = re.exec(de))) { if (partial && m.index + m[0].length >= de.length) break; out.push(m[0].trim()); end = m.index + m[0].length; }
+  if (!partial && de.slice(end).trim()) out.push(de.slice(end).trim());
+  return out.filter(x => /\p{L}/u.test(x));
+}
+// A queue so a streamed answer is spoken sentence by sentence while the rest arrives. A sentence
+// with a recorded clip uses the Thorsten recording; the rest goes to the device voice.
+const sq = { items: [], busy: false, gen: 0 };
+function sqStop() { sq.gen++; sq.items = []; sq.busy = false; if (synth) synth.cancel(); if (player) player.pause(); }
+function sqAdd(text) { sq.items.push(text); if (!sq.busy) sqRun(sq.gen); }
+async function sqRun(g) {
+  sq.busy = true;
+  while (sq.items.length && g === sq.gen) {
+    const s = sq.items.shift();
+    await new Promise(res => {
+      if (!S.settings.deviceVoice && hasClip(s)) return playClip(s).then(p => { p.onended = res; p.onerror = res; }).catch(() => utter(s, res));
+      utter(s, res);
+    });
+  }
+  if (g === sq.gen) sq.busy = false;
+}
+function utter(text, done) {
+  if (!synth) return done();
+  const u = new SpeechSynthesisUtterance(text); u.lang = "de-DE";
+  const v = pickVoice(); if (v) u.voice = v;
+  u.rate = S.settings.rate || 0.9;
+  let fin = false; const end = () => { if (!fin) { fin = true; clearTimeout(tm); done(); } };
+  const tm = setTimeout(end, 3000 + text.length * 120); // some browsers never report the end
+  u.onend = end; u.onerror = end; synth.speak(u);
+}
+function convoSpeak(s) { sqStop(); convoSentences(s, false).forEach(sqAdd); }
+function convoBubble(m, i, cv) {
+  const p = convoParts(m.content, m.live), open = cv.reveal?.[i];
+  return `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble"><div class="de">${mdLite(p.de) || "…"}</div>${open && p.help ? `<div class="help">${mdLite(p.help)}</div>` : ""}${m.live ? "" : `<div class="tools"><button class="icon-btn" data-act="convoSay" data-i="${i}" aria-label="Read aloud">${ICON.play}</button>${p.help ? `<button class="reveal" data-act="convoReveal" data-i="${i}" aria-expanded="${!!open}">${open ? "Hide English" : "English"}</button>` : ""}${m.ms ? `<span class="ms" title="Time until the first words arrived">${(m.ms / 1000).toFixed(1)} s</span>` : ""}</div>`}</div></div>`;
+}
 async function convoNext(t) {
-  const cv = t.cv; cv.busy = true; cv.err = null; render();
+  const cv = t.cv; cv.busy = true; cv.err = null; cv.live = null; render();
+  sqStop(); const g = sq.gen; let said = 0;
+  // show and speak each finished sentence as it streams in
+  const onText = text => {
+    if (task() !== t) return;
+    cv.live = { role: "assistant", content: text, live: true };
+    const el = $("#convoLive"); if (el) el.outerHTML = `<div id="convoLive">${convoBubble(cv.live, -1, cv)}</div>`;
+    if (g !== sq.gen) return;
+    const ss = convoSentences(text, true);
+    while (said < ss.length) sqAdd(ss[said++]);
+  };
   try {
-    const m = await askLehrer([{ role: "user", content: convoBrief() }, ...cv.msgs]);
+    const m = await askLehrer([{ role: "user", content: convoBrief() }, ...cv.msgs], { fast: true, stream: true, onText });
     if (task() !== t) return;
     cv.msgs.push({ role: "assistant", ...m, t: Date.now() });
     if (/\[ENDE\]/.test(m.content) || cv.turns >= CONVO_TURNS + 1) convoFinish(t);
-    convoSpeak(m.content);
+    if (g === sq.gen) convoSentences(m.content, false).slice(said).forEach(sqAdd);
   } catch (e) {
     if (task() !== t) return;
     if (e.off) { cv.busy = false; toast("Lehrer isn't switched on yet, so the conversation is skipped."); return nextTask(); }
     cv.err = e.message || "Couldn't reach the teacher.";
   }
-  cv.busy = false; render(); $(".convo-log")?.lastElementChild?.scrollIntoView({ block: "nearest" });
+  cv.busy = false; cv.live = null; render(); $(".convo-log")?.lastElementChild?.scrollIntoView({ block: "nearest" });
 }
 function convoFinish(t) {
   const cv = t.cv; if (cv.done) return; cv.done = true;
   // keep it in the Lehrer tab's conversations, without the app's brief
-  (S.chats ||= []).push({ id: Date.now(), t: Date.now(), msgs: [{ role: "user", content: `(Gespräch in Lektion ${T.lesson})`, t: Date.now() }, ...cv.msgs].map(m => ({ ...m, content: m.content.replace(/\[ENDE\]/g, "").trim() })) });
+  (S.chats ||= []).push({ id: Date.now(), t: Date.now(), msgs: [{ role: "user", content: `(Gespräch in Lektion ${T.lesson})`, t: Date.now() }, ...cv.msgs].map(m => ({ role: m.role, content: unEmoji(m.content.replace(/\[ENDE\]/g, "")).trim(), t: m.t, ...(m.by ? { by: m.by } : {}) })) });
   S.chats = S.chats.slice(-20); save();
+}
+// Speaking: the mic keeps listening through pauses. The answer goes when Or taps Senden (or the mic
+// again), or after CONVO_PAUSE of quiet once something was said.
+const CONVO_PAUSE = 3500;
+let cmic = null;
+function convoMic() {
+  if (cmic) return convoSend();
+  const t = task(), cv = t?.cv; if (!cv || cv.busy || cv.done) return;
+  if (!SR) { micBlocked = true; return render(); }
+  sqStop();
+  const c = cmic = { t, base: "", interim: "", rec: null, timer: 0 };
+  const show = () => { const el = $("#convoDraft"); if (el) el.textContent = joinText(c.base, c.interim) || "…"; };
+  // the quiet timer starts only once something was heard; with nothing said, stop after 20 s
+  const arm = () => { clearTimeout(c.timer); c.timer = joinText(c.base, c.interim).trim() ? setTimeout(() => cmic === c && convoSend(), CONVO_PAUSE) : setTimeout(() => cmic === c && convoStopMic(), 20e3); };
+  const start = () => {
+    const r = new SR(); r.lang = "de-DE"; r.interimResults = true; r.continuous = true; c.rec = r;
+    r.onresult = e => {
+      if (cmic !== c || c.rec !== r) return;
+      let interim = "";
+      for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) c.base = joinText(c.base, x[0].transcript); else interim += x[0].transcript; }
+      c.interim = interim; show(); arm();
+    };
+    r.onerror = e => { if (cmic !== c || c.rec !== r) return; if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { convoStopMic(); micError(e.error); render(); } };
+    // browsers end recognition after a pause; start again so Or can keep talking
+    r.onend = () => { if (cmic === c && c.rec === r) { c.base = joinText(c.base, c.interim); c.interim = ""; try { start(); } catch (e) { convoSend(); } } };
+    r.start();
+  };
+  try { start(); } catch (e) { cmic = null; return toast("Couldn't start the microphone."); }
+  arm(); render();
+}
+function convoStopMic() {
+  const c = cmic; if (!c) return null; cmic = null; clearTimeout(c.timer);
+  try { c.rec && c.rec.stop(); } catch (e) {}
+  return joinText(c.base, c.interim).trim();
+}
+function convoSend() {
+  const t = cmic?.t, a = convoStopMic();
+  if (!t || task() !== t) return render();
+  if (!a) { render(); return toast("I didn't hear anything. Tap the mic and speak."); }
+  convoAnswer(t, a);
+}
+function convoAnswer(t, text) {
+  const cv = t.cv;
+  cv.msgs.push({ role: "user", content: text, t: Date.now() }); cv.turns++; T.listenOk = true; day().spoke++; addXP(5); save();
+  convoNext(t);
 }
 async function teachConvo() {
   const t = task(), cv = t.cv; if (!cv || cv.busy || cv.done) return;
-  try {
-    const a = await getAnswer(); if (!a || task() !== t) return;
-    cv.msgs.push({ role: "user", content: a.alts[0], t: Date.now() }); cv.turns++; addXP(5); save();
-    convoNext(t);
-  } catch (err) { micError(err); render(); }
+  if (!micBlocked) return convoMic();
+  const a = await getAnswer(); if (a && task() === t) convoAnswer(t, a.alts[0]);
 }
 function tConvo(t) {
   const cv = t.cv ||= { msgs: [], turns: 0 };
   if (!cv.msgs.length && !cv.busy && !cv.err) setTimeout(() => task() === t && !cv.busy && !cv.msgs.length && convoNext(t), 0);
-  const log = cv.msgs.map(m => m.role === "assistant"
-    ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${convoShow(m.content)}<div><button class="icon-btn" data-act="convoSay" data-i="${cv.msgs.indexOf(m)}" aria-label="Read aloud">${ICON.play}</button></div></div></div>`
-    : `<div class="me"><div class="bubble">${esc(m.content)}</div></div>`).join("");
+  const log = cv.msgs.map((m, i) => m.role === "assistant" ? convoBubble(m, i, cv) : `<div class="me"><div class="bubble">${esc(m.content)}</div></div>`).join("");
+  const live = cmic && cmic.t === t;
   return `<span class="label">Gespräch mit Lehrer · ${Math.min(cv.turns, CONVO_TURNS)} of ${CONVO_TURNS}</span>
-    <div class="convo-log">${log}${cv.busy ? `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble muted">…</div></div>` : ""}</div>
+    <div class="convo-log">${log}${cv.busy ? `<div id="convoLive">${convoBubble(cv.live || { content: "", live: true }, -1, cv)}</div>` : ""}${live ? `<div class="me"><div class="bubble draft" id="convoDraft">${esc(joinText(cmic.base, cmic.interim)) || "…"}</div></div>` : ""}</div>
     ${cv.err ? verdictHTML({ v: "bad", title: cv.err, detail: `<button class="btn small" data-act="convoRetry">Try again</button>` }) : ""}
-    ${cv.done ? nextBtn() : cv.busy || cv.err ? "" : `${micOrType("teachConvo", "Antworte auf Deutsch …")}<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`}`;
+    ${cv.done ? nextBtn() : cv.busy || cv.err ? "" : micBlocked ? `${micOrType("teachConvo", "Antworte auf Deutsch …")}<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`
+      : `<button class="mic ${live ? "live" : ""}" data-act="teachConvo" aria-label="${live ? "Send" : "Speak"}">${ICON.mic}</button>
+        <div class="heard">${live ? "Ich höre zu. Take your time: I send after a longer pause." : "Tap and speak"}</div>
+        ${live ? `<button class="btn primary" data-act="convoSend">Senden</button>` : `<button class="btn ghost" data-act="teachSkip">Skip the conversation</button>`}`}`;
 }
 // ----- exercises answered out loud: the spoken sentence fills the blanks, picks the option or lays
 // the tiles, then the usual check runs, so the verdict is the same as for a typed answer -----
@@ -7800,7 +7927,9 @@ const A = {
   teachConvo: () => teachConvo(), teachConvoType: () => teachConvo(),
   convoRetry: () => { const t = task(); if (!t?.cv) return; t.cv.err = null; convoNext(t); },
   convoSay: d => { const m = task()?.cv?.msgs[+d.i]; if (m) convoSpeak(m.content); },
-  nav: d => { if (dict) stopDictation(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
+  convoReveal: d => { const cv = task()?.cv; if (!cv) return; (cv.reveal ||= {})[d.i] = !cv.reveal[d.i]; render(); },
+  convoSend: () => convoSend(),
+  nav: d => { if (dict) stopDictation(); if (cmic) convoStopMic(); view = d.view; try { localStorage.setItem("sprechstunde-view", view); } catch (e) {} if (view === "lehrer" && chat.off) { chat.off = false; chat.providers = null; } if (view === "course") lessonTab = "list"; if (view !== "review") { gsess = null; } if (view === "review" && sess && !sess.cur) sess = null; if (view === "speak") sp = null; render(); window.scrollTo(0, 0); },
   say: d => say(d.text),
   openLesson: d => { closeCel(); lessonId = +d.id; lessonTab = "start"; view = "course"; render(); window.scrollTo(0, 0); },
   ltab: d => { lessonTab = d.tab; render(); window.scrollTo(0, 0); },
