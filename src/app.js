@@ -161,24 +161,61 @@ function lev(a, b) {
   return p[n];
 }
 const near = (a, b) => a === b || (a.length >= 4 && lev(loose(a), loose(b)) <= (a.length >= 8 ? 2 : 1));
-// word-level alignment; returns matched flags for target tokens + score 0..1
+// How much each word counts when a spoken (or typed) sentence is checked.
+// Names don't count at all: a recogniser can't know them ("Or" comes back as "ohren").
+// German place names count half, and a near miss on them is fine.
+// Articles, negation and numbers count fully, and a near miss there changes the meaning,
+// so it's a mistake, not an accent. A different ending on the right word (gute/guten) is grammar.
+// Short words count less: recognisers often drop or swap them even when they were said right.
+const NAMES = new Set("or anna david dana weber israel tel aviv haifa jerusalem london japan irak pessach chanukka challa whatsapp".split(" "));
+const PLACES = new Set("deutschland berlin muenchen münchen wien hamburg heidelberg europa norwegen griechenland".split(" "));
+const DETS = /^(der|die|das|den|dem|des|(k|m|d|s)?ein(e|en|em|er|es)?|ihr(e|en|em|er|es)?|unser(e|en|em|er|es)?|eur(e|en|em|er|es)|dies(e|en|em|er|es)|jed(e|en|em|er|es))$/;
+const NEG = new Set(["nicht", "nichts", "nie", "niemand", "nein", ...ONES, ...TENS.filter(Boolean)].map(norm));
+const FILLER = new Set(["äh", "ähm", "aeh", "aehm", "hm", "hmm", "mhm", "uh", "um", "uhm", "eh", "ehm", "öhm"]);
+const WEIGHT = { name: 0, place: 0.5, det: 1, neg: 1.5, short: 0.6, word: 1 };
+const wordKind = t => NAMES.has(t) ? "name" : PLACES.has(t) ? "place" : DETS.test(t) ? "det" : NEG.has(t) ? "neg" : t.length <= 3 ? "short" : "word";
+// same word, different ending (gute/guten, kaufe/kauft, einen/einem)
+function endingOnly(a, b) {
+  a = loose(a); b = loose(b); if (!b || a === b) return false;
+  let p = 0; while (p < a.length && a[p] === b[p]) p++;
+  const x = a.slice(p), y = b.slice(p);
+  // a dropped final -e (hab/habe, Kaffe/Kaffee) is how people talk, not a grammar slip
+  return p >= 3 && /^[enmrst]{0,2}$/.test(x) && /^[enmrst]{0,2}$/.test(y) && (x + y !== "e");
+}
+// word-level alignment of target tokens with heard tokens. st[i]: "ok" (exact), "close" (heard as a
+// similar word: pronunciation), "form" (wrong article or ending), "miss", or "skip" (a name: not checked);
+// got[i]: what was heard there. score 0..1 is weighted by how much each word matters; clean: nothing to fix.
 function align(target, heard) {
-  const t = target, h = heard, m = t.length, n = h.length;
+  const t = target.filter(Boolean), tj = " " + t.join(" ") + " ", m = t.length;
+  // drop fillers; read short forms as the full ones when the target has them (geht's = geht es)
+  const h = heard.filter(x => x && !FILLER.has(x)).flatMap(x => /..s$/.test(x) && tj.includes(` ${x.slice(0, -1)} es `) ? [x.slice(0, -1), "es"] : [x]), n = h.length;
   const L = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
   for (let i = m - 1; i >= 0; i--) for (let j = n - 1; j >= 0; j--) L[i][j] = near(t[i], h[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
-  // st[i]: "ok" (exact), "close" (recognised as a similar word) or "miss"; got[i]: what was heard there
   const st = new Array(m).fill("miss"), got = new Array(m).fill("");
   const pairs = []; let i = 0, j = 0;
   while (i < m && j < n) { if (near(t[i], h[j])) { pairs.push([i, j]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
-  let pi = 0, pj = 0;
+  let pi = 0, pj = 0, extra = 0;
   for (const [a, b] of [...pairs, [m, n]]) {
     // words in the gap before this anchor: pair up missed target words with stray heard words
     for (let x = pi, y = pj; x < a; x++, y++) if (y < b) got[x] = h[y];
+    // heard words left over in the gap are extra, unless a name sits there (it may come back as several words)
+    if (!t.slice(pi, a).some(x => NAMES.has(x))) for (let y = pj + (a - pi); y < b; y++) extra += h[y].length <= 3 ? 0.3 : 0.5;
     if (a < m) { st[a] = t[a] === h[b] ? "ok" : "close"; got[a] = h[b]; }
     pi = a + 1; pj = b + 1;
   }
-  const pts = st.reduce((s, v) => s + (v === "ok" ? 1 : v === "close" ? 0.6 : 0), 0);
-  return { st, got, hit: st.map(v => v !== "miss"), score: m ? (2 * pts) / (m + Math.max(n, 1)) : 0 };
+  let pts = 0, W = 0, serious = false;
+  t.forEach((x, k) => {
+    const kind = wordKind(x), w = WEIGHT[kind];
+    if (kind === "name") { st[k] = "skip"; return; }
+    if (st[k] === "close" && (kind === "det" || kind === "neg" || endingOnly(x, got[k]))) st[k] = "form";
+    else if (st[k] === "miss" && got[k] && (kind === "det" && DETS.test(got[k]) || endingOnly(x, got[k]))) st[k] = "form";
+    const c = st[k] === "ok" ? 1 : st[k] === "close" ? (kind === "place" ? 1 : 0.8) : st[k] === "form" ? (kind === "det" || kind === "neg" ? 0 : 0.3) : 0;
+    W += w; pts += w * c;
+    if (st[k] === "form" || st[k] === "miss" && w >= 1) serious = true;
+  });
+  // a wrong article or ending, or a missing word that matters, never passes (pass is 90%)
+  const score = Math.min(W ? pts / (W + extra) : n ? 1 : 0, serious ? 0.85 : 1);
+  return { st, got, hit: st.map(v => v !== "miss"), score, clean: extra === 0 && st.every(v => v === "ok" || v === "skip") };
 }
 // pronunciation tips for a word: which hard sounds it contains
 function tipsFor(word) {
@@ -793,8 +830,8 @@ function vSpeak() {
   if (sp.kind === "shadow") {
     const r = sp.result && !sp.result.self ? sp.result : null;
     const sent = r ? markWords(it.text, r) : esc(it.text);
-    const res = r ? `<div class="score">${Math.round(r.score * 100)}%</div><div class="result ${r.score >= 0.9 ? "ok" : r.score >= 0.6 ? "meh" : "bad"}">${r.score >= 0.9 ? "Sehr gut! Every word came through clearly." : r.score >= 0.6 ? "Close. Work on the words below, then try the whole sentence again." : "Listen slowly, then try again in short chunks."}</div>` : "";
-    return head + blockedNote + `<section class="cardbox"><span class="label">Repeat after me</span><div class="sentence ${sp.hide && !sp.result ? "hidden-text" : ""}" data-act="unhide">${sent}</div>${r ? `<p class="small muted">Green: clear · Orange: heard as a similar word · Red: not recognised</p>` : ""}${listenRow}${res}${r ? coachHTML(it.text, r) : ""}${mic}${recorderHTML(it.text)}
+    const res = r ? `<div class="score">${Math.round(r.score * 100)}%</div><div class="result ${r.score >= 0.9 ? "ok" : r.score >= 0.6 ? "meh" : "bad"}">${r.score >= 0.9 ? (r.clean ? "Sehr gut! Every word came through clearly." : "Gut! The sentence came through. Polish the marked words if you like.") : r.score >= 0.6 ? "Close. Work on the words below, then try the whole sentence again." : "Listen slowly, then try again in short chunks."}</div>` : "";
+    return head + blockedNote + `<section class="cardbox"><span class="label">Repeat after me</span><div class="sentence ${sp.hide && !sp.result ? "hidden-text" : ""}" data-act="unhide">${sent}</div>${r ? `<p class="small muted">Green: clear · Orange: heard as a similar word · Red: not recognised or wrong form · Names aren't checked</p>` : ""}${listenRow}${res}${r ? coachHTML(it.text, r) : ""}${mic}${recorderHTML(it.text)}
       <div class="row" style="justify-content:center">${sp.result && !micBlocked ? `<button class="btn" data-act="spRetry">Try again</button>` : ""}<button class="btn ${sp.result ? "primary" : "ghost"}" data-act="spNext">${sp.result ? "Next" : "Skip"}</button>${!sp.result ? `<button class="btn ghost" data-act="spHide">${sp.hide ? "Show text" : "Hide text"}</button>` : ""}</div></section>`;
   }
   // talk
@@ -1262,10 +1299,10 @@ function tShadow(t) {
   const r = T.r;
   const sent = r && r.score != null ? markWords(t.text, r) : micBlocked && !r ? "<span class='muted'>(listen and write what you hear)</span>" : esc(t.text);
   const pass = r && r.score >= 0.9;
-  const msg = !r ? "" : pass ? verdictHTML({ v: "ok", title: micBlocked ? "Perfectly written!" : "Sehr gut! Every word came through." }) : verdictHTML({ v: r.score >= 0.6 ? "close" : "bad", title: `${Math.round(r.score * 100)}%: ${r.score >= 0.6 ? "almost" : "not yet"}`, detail: micBlocked ? `Correct: <b>${esc(t.text)}</b>` : "Work on the marked words, then try again." });
+  const msg = !r ? "" : pass ? verdictHTML({ v: "ok", title: micBlocked ? (r.clean ? "Perfectly written!" : "Good! Check the marked words.") : r.clean ? "Sehr gut! Every word came through." : "Gut! The sentence came through.", detail: r.clean ? "" : "The marked words were a little off, nothing that changes the meaning." }) : verdictHTML({ v: r.score >= 0.6 ? "close" : "bad", title: `${Math.round(r.score * 100)}%: ${r.score >= 0.6 ? "almost" : "not yet"}`, detail: micBlocked ? `Correct: <b>${esc(t.text)}</b>` : "Work on the marked words, then try again." });
   return `<span class="label">${micBlocked ? "Write what you hear" : "Repeat after me"}</span><div class="sentence">${sent}</div>
     <div class="row" style="justify-content:center"><button class="btn" data-act="say" data-text="${esc(t.text)}">${ICON.play} Listen</button><button class="btn" data-act="saySlow" data-text="${esc(t.text)}">${ICON.slow} Slowly</button></div>
-    ${msg}${r && !pass && !micBlocked ? coachHTML(t.text, r) : ""}
+    ${msg}${r && !r.clean && !micBlocked ? coachHTML(t.text, r) : ""}
     ${pass || T.tries >= 3 ? nextBtn() : `${micOrType("teachShadow", "Type the sentence…")}${T.tries ? `<button class="btn ghost" data-act="teachNext">Skip</button>` : ""}`}`;
 }
 function tTalk(t) {
@@ -1437,15 +1474,16 @@ function judgeBuild(st, alts) {
       const tw = btoks(tg);
       if (hw.length === tw.length && hw.every((x, i) => sameTok(x, tw[i]))) return { v: "ok", heard: h, target: tg, umlaut: hw.some((x, i) => x !== tw[i]) };
       const al = align(tw, hw);
+      if (al.clean) return { v: "ok", heard: h, target: tg }; // only a name differed
       if (!best || al.score > best.al.score) best = { al, heard: h, target: tg, hw, tw };
     }
   }
   const { al, hw, tw, heard, target } = best, issues = [], bag = a => a.map(loose).sort().join(" ");
-  const order = bag(hw) === bag(tw), wrong = wordStates(target, al).filter(w => w.st !== "ok" && bare(w.wd));
+  const order = bag(hw) === bag(tw), wrong = wordStates(target, al).filter(w => w.st !== "ok" && w.st !== "skip" && bare(w.wd));
   if (order) issues.push("All the right words, but the order is off.");
   else for (const w of wrong) {
     if (issues.length >= 2) continue;
-    issues.push(w.got ? `You said “${esc(w.got)}”, it's “${esc(bare(w.wd))}”.` : `Missing: “${esc(bare(w.wd))}”.`);
+    issues.push(w.got ? `You said “${esc(w.got)}”, it's “${esc(bare(w.wd))}”.${w.st === "form" ? ` Check the ${DETS.test(norm(bare(w.wd))) ? "article" : "ending"}.` : ""}` : `Missing: “${esc(bare(w.wd))}”.`);
   }
   if (!issues.length && hw.length > tw.length) issues.push("There are extra words in your sentence.");
   return { v: "bad", heard, target, al, issues, order, wrong: wrong.map(w => bare(w.wd).toLowerCase()) };
@@ -1692,7 +1730,7 @@ function wordStates(text, r) {
   let k = 0;
   return text.split(" ").map(wd => {
     const toks = norm(wd).split(" ").filter(Boolean), sts = toks.map(() => r.st[k]), got = toks.map(() => r.got[k++]);
-    const st = !toks.length ? "ok" : sts.includes("miss") ? "miss" : sts.includes("close") ? "close" : "ok";
+    const st = !toks.length ? "ok" : ["miss", "form", "close", "ok", "skip"].find(v => sts.includes(v)) || "ok";
     return { wd, st, got: got.filter(Boolean).join(" ") };
   });
 }
@@ -1700,11 +1738,11 @@ const markWords = (text, r) => wordStates(text, r).map(w => `<span class="w-${w.
 const bare = w => w.replace(/[^\p{L}\p{N}'’-]/gu, "");
 function coachHTML(text, r) {
   const seen = new Set();
-  const bad = wordStates(text, r).filter(w => w.st !== "ok" && bare(w.wd) && !seen.has(bare(w.wd)) && seen.add(bare(w.wd))).slice(0, 4);
+  const bad = wordStates(text, r).filter(w => w.st !== "ok" && w.st !== "skip" && bare(w.wd) && !seen.has(bare(w.wd)) && seen.add(bare(w.wd))).slice(0, 4);
   if (!bad.length) return "";
   return `<div class="coach"><span class="label">Work on these words</span>${bad.map(w => {
     const word = bare(w.wd), tips = tipsFor(word);
-    return `<div class="coach-item"><div class="row between"><span><b class="w-${w.st}">${esc(word)}</b> <span class="muted small">${w.got ? `I heard “${esc(w.got)}”` : "I didn't catch this word"}</span></span>
+    return `<div class="coach-item"><div class="row between"><span><b class="w-${w.st}">${esc(word)}</b> <span class="muted small">${w.st === "form" ? `I heard “${esc(w.got)}”: check the ${DETS.test(norm(word)) ? "article" : "ending"}` : w.got ? `I heard “${esc(w.got)}”` : "I didn't catch this word"}</span></span>
       <span class="row">${playBtn(word)}<button class="icon-btn" data-act="saySlow" data-text="${esc(word)}" aria-label="Listen slowly">${ICON.slow}</button><button class="btn" data-act="check" data-text="${esc(word)}">${ICON.mic} Say it</button></span></div>
       ${checkHTML(word)}
       ${tips.map(t => `<div class="tip"><b>${esc(t.label)}</b> ${esc(t.how)} <button class="linkbtn" data-act="openSound" data-id="${t.id}">Practise ${esc(t.label)}</button></div>`).join("")}

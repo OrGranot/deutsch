@@ -174,7 +174,8 @@ main { max-width: 760px; margin: 0 auto; padding: 20px 16px 110px; display: grid
 .sentence { font-family: var(--display); font-size: 1.6rem; font-weight: 700; line-height: 1.25; max-width: 30ch; }
 .w-ok { color: var(--ok); }
 .w-close { color: var(--close); text-decoration: underline dotted; text-underline-offset: 4px; }
-.w-miss { color: var(--bad); text-decoration: underline wavy; text-underline-offset: 4px; }
+.w-miss, .w-form { color: var(--bad); text-decoration: underline wavy; text-underline-offset: 4px; }
+.w-skip { color: inherit; }
 .coach, .recorder { display: grid; gap: 10px; width: 100%; max-width: 560px; text-align: left; }
 .recorder { border-top: 1px solid var(--line); padding-top: 14px; justify-items: center; }
 .coach-item { display: grid; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
