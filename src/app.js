@@ -1577,6 +1577,12 @@ function judgeBuild(st, alts) {
       if (hw.length === tw.length && hw.every((x, i) => sameTok(x, tw[i]))) return { v: "ok", heard: h, target: tg, umlaut: hw.some((x, i) => x !== tw[i]) };
       const al = align(tw, hw);
       if (al.clean) return { v: "ok", heard: h, target: tg }; // only a name differed
+      // every word there, one sounding a little different ("English" for "Englisch"): the recogniser
+      // or the accent, not a mistake. Passes, with a pronunciation note.
+      // A changed vowel (spricht/sprecht) is grammar, so the vowels must match.
+      const vow = x => loose(x).replace(/[^aeiouy]/g, "");
+      if (al.score >= 0.9 && al.st.every((v, i) => v === "ok" || v === "skip" || v === "close" && vow(al.got[i]) === vow(tw[i])) && al.st.filter(v => v === "close").length <= 1)
+        return { v: "ok", heard: h, target: tg, near: tw.map((w, i) => al.st[i] === "close" ? [al.got[i], tg.split(/\s+/).map(bare).find(x => loose(x) === loose(w)) || w] : null).filter(Boolean)[0] };
       if (!best || al.score > best.al.score) best = { al, heard: h, target: tg, hw, tw };
     }
   }
@@ -1635,7 +1641,7 @@ function tBuild(t) {
       + `<div class="row" style="justify-content:center">${T.hint < words.length - 1 ? `<button class="btn ghost" data-act="teachBuildHint">${T.hint ? "One more word" : "Give me a start"}</button>` : ""}<button class="btn ghost" data-act="teachBuildShow">Show me</button></div>`;
   }
   const said = r.typed ? "You wrote" : "I heard";
-  if (r.v === "ok") return `<span class="sub">${esc(st.en)}</span>` + verdictHTML({ v: "ok", title: T.hint ? "Richtig! Next time without the start." : "Richtig!", detail: r.umlaut ? "Watch the umlauts: ä, ö, ü." : "" })
+  if (r.v === "ok") return `<span class="sub">${esc(st.en)}</span>` + verdictHTML({ v: "ok", title: T.hint ? "Richtig! Next time without the start." : "Richtig!", detail: r.near ? `I heard “${esc(r.near[0])}”: say “${esc(bare(r.near[1]))}” clearly.` : r.umlaut ? "Watch the umlauts: ä, ö, ü." : "" })
     + `<div class="models"><div class="model">${playBtn(st.de)}<span>${esc(st.de)}</span></div>${r.target !== st.de ? `<div class="model">${playBtn(r.target)}<span>${esc(r.target)} <span class="muted small">(yours, also right)</span></span></div>` : ""}</div>` + nextBtn();
   // the reason only when it's about the mistake actually made
   const why = st.why && (r.gave || (r.order ? /end|first|second|goes|position|behind|order/i.test(st.why) : r.wrong.some(w => st.why.toLowerCase().includes(w))));
