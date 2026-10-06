@@ -490,13 +490,13 @@ function vHome() {
   const run = savedRun();
   if (run) {
     const at = run.tasks[run.i], part = [...run.tasks.slice(0, run.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
-    label = `Paused · ${PART[part] ? PART[part].replace(/<[^>]+>/g, "") : esc(part)}`;
-    btn = "Continue where I stopped"; items = pathSteps(run.tasks);
-    note = `${Math.round(100 * run.i / Math.max(1, run.tasks.length - 1))}% done. ${at && at.type === "intro" ? "We start with the next part." : "We pick up at the same exercise."}`;
+    label = run.mode === "exam" ? "Paused · Level exam" : `Paused · ${PART[part] ? PART[part].replace(/<[^>]+>/g, "") : esc(part)}`;
+    btn = "Continue where I stopped"; items = run.mode === "exam" ? [`${run.x.res.length} questions answered`, `Now checking ${run.x.lv}`] : pathSteps(run.tasks);
+    note = run.mode === "exam" ? "The exam picks up at the same question." : `${Math.round(100 * run.i / Math.max(1, run.tasks.length - 1))}% done. ${at && at.type === "intro" ? "We start with the next part." : "We pick up at the same exercise."}`;
   } else if (!c.placed) {
-    label = "First: find your level"; btn = "Start the check";
-    items = ["About 10 questions per level, starting with A1", "80% on a level and we try the next one", "Then I plan your lessons from there"];
-    note = "About 5 minutes. No mic needed.";
+    label = "First: find your level"; btn = "Start the level exam";
+    items = ["It starts with the basics and climbs, A1 up to B2", "Grammar, words, reading, listening and writing", "Where it gets hard, I look closely to find your exact lesson", "Then your course starts there, not at “Guten Tag”"];
+    note = "About 15–25 minutes. Headphones help for the listening part.";
   } else if (c.check) {
     label = `Today: ${c.check} level check`; btn = "Start the check";
     items = ["A short warm-up", `12 questions from all of ${c.check}`, `80% and you move on${nextLevelOf(c.check) ? " to " + nextLevelOf(c.check) : ""}`];
@@ -514,9 +514,10 @@ function vHome() {
   return `
   <section class="hero"><h1>${greet}</h1><p class="muted">${met ? `Today's goal is done. ${st > 1 ? `${st} days in a row.` : ""}` : st ? `Day ${st + 1} in a row is one lesson away.` : "One lesson a day. I'll tell you what to do."}</p></section>
   ${weeklyHome()}
+  ${run ? "" : examPanel("home")}
   <section class="panel today">
     <span class="label">${label}</span>
-    ${run ? teacherSays("You stopped in the middle of the lesson. Tap Continue and we pick up right where you left off.") : c.placed && !c.check ? teacherSays(doneToday ? "Good work today. If you want more, I've planned another lesson." : "Here's today's plan. Tap Start and I'll take you through it, one step at a time.") : ""}
+    ${run ? teacherSays(run.mode === "exam" ? "You paused the level exam. Tap Continue to pick up at the same question." : "You stopped in the middle of the lesson. Tap Continue and we pick up right where you left off.") : c.placed && !c.check ? teacherSays(doneToday ? "Good work today. If you want more, I've planned another lesson." : "Here's today's plan. Tap Start and I'll take you through it, one step at a time.") : ""}
     <ol class="plan ${c.placed && !c.check ? "path" : ""}">${items.map(x => `<li>${x}</li>`).join("")}</ol>
     <button class="btn primary big" data-act="teachStart" autofocus>${ICON.mic} ${btn}</button>
     <p class="small muted">${note}</p>
@@ -1425,8 +1426,9 @@ function startLevelCheck(lv) {
   const tasks = [];
   if (due.length) { tasks.push({ type: "intro", part: "Aufwärmen", title: "Warm-up", text: "A few words from before, then the level check." }); due.forEach(id => tasks.push({ type: "recall", id, graded: true })); }
   tasks.push({ type: "intro", part: "Prüfung", title: `${lv} level check`, text: `You've finished every ${lv} lesson. 12 questions from the whole level. With 80% you move on to ${nextLevelOf(lv) || "the end of the course"}; otherwise we strengthen what's missing first.` },
-    ...checkItems(lv, 12), { type: "lcheck", lv });
-  T = { mode: "check", tasks, i: 0, r: null, tries: 0, ok: 0, n: 0, mistakes: [], learned: [], xp0: S.xp || 0, tally: {}, lesson: curLesson().id };
+    { type: "lcheck", lv });
+  T = { mode: "check", tasks, i: 0, r: null, tries: 0, ok: 0, n: 0, mistakes: [], learned: [], xp0: S.xp || 0, tally: {}, lesson: curLesson().id, xused: [] };
+  T.tasks.splice(T.tasks.length - 1, 0, ...(XITEMS.length ? xCheckItems(lv, 12) : checkItems(lv, 12)));
   view = "teach"; render(); window.scrollTo(0, 0); onTask();
 }
 function tallyOf(lv) { return (T.tally[lv] ||= { ok: 0, n: 0, words: [], lessons: [] }); }
@@ -1487,6 +1489,300 @@ function tChecked(t) {
   return `<span class="label">Level check · ${t.lv}</span><div class="celebrate-title sumtitle">${Math.round(t.rate * 100)}%</div>
     ${teacherSays(t.pass ? `You passed ${t.lv}.${nx ? ` Your next lesson is ${nx}, Lektion ${curLesson().id}: ${esc(curLesson().title)}${/[.?!]$/.test(curLesson().title) ? "" : "."} ${t.lv} words keep coming back in your reviews.` : ""}` : `Not yet: you need 80%. The next ${c.remedial.left} lessons strengthen the parts you missed${c.remedial.lessons.length ? ` (${c.remedial.lessons.slice(0, 3).map(id => esc(LESSON[id].title)).join(", ")}${c.remedial.lessons.length > 3 ? ` and ${c.remedial.lessons.length - 3} more` : ""})` : ""}, then we do the check again.`)}
     <div class="row" style="justify-content:center"><button class="btn primary" data-act="teachDone">Fertig</button></div>`;
+}
+// ----- Einstufungstest: the adaptive level exam -----
+// It climbs from A1. Each level opens with a short screen: 8 questions from the whole level (grammar,
+// words, reading, listening, writing). 7 of 8 and it climbs to the next level. Otherwise it digs into
+// that level one stage (4 lessons) at a time, in order; the first stage under 75% is where the course
+// starts, at the first lesson in it with a miss. Every item belongs to one lesson (src/exam/), so the
+// result also names the weak topics. Lessons before the start are marked skipped: their words still
+// come back in the warm-ups, and the lessons stay open under Fortschritt.
+const XITEMS = typeof EXAM !== "undefined" ? EXAM : [];
+const XB = Object.fromEntries(XITEMS.map(x => [x.id, x]));
+const XSKILLS = [["grammar", "Grammar"], ["vocab", "Words"], ["reading", "Reading"], ["listening", "Listening"], ["writing", "Writing"]];
+const XSHORT = { grammar: "Gram.", vocab: "Words", reading: "Read", listening: "Listen", writing: "Write" };
+const XSKILL = Object.fromEntries(XSKILLS);
+const XSCREEN = 8, XSTAGE_PASS = 0.75;
+const stagesOf = lv => { const ids = levelLessons(lv).map(L => L.id), k = Math.ceil(ids.length / 3); return [ids.slice(0, k), ids.slice(k, 2 * k), ids.slice(2 * k)]; };
+const STAGE_NAME = ["beginning", "middle", "end"];
+// the item behind an exam task: a bank item, or a word question made from the lesson's vocabulary
+// options are shown in a fresh order each time (t.perm), so the answer's position says nothing
+function xItem(t) {
+  if (t.id) { const x = XB[t.id]; return x.type === "mc" && t.perm ? { ...x, opts: t.perm.map(k => x.opts[k]), a: t.perm.indexOf(x.a) } : x; }
+  const w = WORDS[t.w];
+  return { lesson: w.lesson, skill: "vocab", type: "mc", topic: `Words: ${LESSON[w.lesson].title}`, word: true, en: w.en, opts: t.opts, a: t.opts.indexOf(w.de) };
+}
+function xPick(f, n = 1) {
+  const used = new Set(T.xused), seen = new Set(course().xseen || []);
+  const pool = shuffle(XITEMS.filter(x => f(x) && !used.has(x.id))).sort((a, b) => seen.has(a.id) - seen.has(b.id));
+  return pool.slice(0, n).map(x => { T.xused.push(x.id); return { type: "xq", id: x.id, ...(x.type === "mc" ? { perm: shuffle(x.opts.map((_, k) => k)) } : {}) }; });
+}
+function xWord(lessons) {
+  const used = new Set(T.xused), ids = lessons.flatMap(id => LESSON[id].words).filter(id => !used.has("w:" + id) && WORDS[id].en.length < 40);
+  const nouns = ids.filter(id => WORDS[id].art), pool = shuffle(nouns.length && Math.random() < 0.7 ? nouns : ids);
+  if (!pool.length) return [];
+  const id = pool[0]; T.xused.push("w:" + id);
+  return [{ type: "xq", w: id, opts: wordOpts(id, levelLessons(LESSON[WORDS[id].lesson].level)) }];
+}
+const inLs = ls => x => ls.includes(x.lesson);
+function xFill(items, n, ls) { while (items.length < n) { const more = xPick(x => x.skill === "grammar" && inLs(ls)(x)); if (!more.length) break; items.push(...more); } return items; }
+function xScreenItems(lv) {
+  const st = stagesOf(lv), all = st.flat();
+  const items = [...st.flatMap(s => xPick(x => x.skill === "grammar" && inLs(s)(x))), ...xWord(all),
+    ...xPick(x => x.skill === "reading" && inLs(all)(x)), ...xPick(x => x.skill === "listening" && inLs(all)(x)),
+    ...xPick(x => x.type === "gap" && inLs(all)(x)), ...xPick(x => x.type === "tr" && inLs(all)(x))];
+  const [first, ...rest] = shuffle(xFill(items, XSCREEN, all));
+  // never open a level with a long reading text
+  return first && XB[first.id || ""]?.skill === "reading" ? [...rest, first] : [first, ...rest].filter(Boolean);
+}
+function xStageItems(lv, si) {
+  const s = stagesOf(lv)[si];
+  const g = s.flatMap(id => xPick(x => x.skill === "grammar" && x.lesson === id));
+  const rl = si % 2 ? ["listening", "reading"] : ["reading", "listening"];
+  let lr = xPick(x => x.skill === rl[0] && inLs(s)(x)); if (!lr.length) lr = xPick(x => x.skill === rl[1] && inLs(s)(x));
+  const rest = [...xWord(s), ...xPick(x => x.type === "gap" && inLs(s)(x)), ...xPick(x => x.type === "tr" && inLs(s)(x)), ...lr, ...xPick(x => x.skill === "vocab" && inLs(s)(x))];
+  return xFill([...g, ...shuffle(rest)], 9, s);
+}
+// a second look at a stage that just missed 75%: one careless slip shouldn't send anyone back a third of a level
+function xConfirmItems(lv, si) {
+  const s = si < 0 ? stagesOf(lv).flat() : stagesOf(lv)[si], missed = [...new Set(T.x.res.filter(r => !r.ok && s.includes(r.lesson)).map(r => r.lesson))];
+  const items = missed.flatMap(id => xPick(x => (x.skill === "grammar" || x.type === "gap") && x.lesson === id, 2));
+  return xFill(items.slice(0, 6), 5, s);
+}
+function xBlock(lv, phase, st, text, confirm) {
+  const x = T.x; x.lv = lv; x.phase = phase; x.st = st || 0; x.blk++;
+  const items = (phase === "screen" ? xScreenItems(lv) : phase === "screen2" ? xConfirmItems(lv, -1).slice(0, 4) : confirm ? xConfirmItems(lv, x.st) : xStageItems(lv, x.st)).map(t => ({ ...t, blk: x.blk }));
+  const title = phase === "screen" ? `${lv}` : `${lv}, ${STAGE_NAME[x.st]}: Lektion ${stagesOf(lv)[x.st][0]}–${stagesOf(lv)[x.st].slice(-1)[0]}`;
+  return [{ type: "intro", part: `Einstufung · ${lv}`, title, text }, ...items, { type: "xstep" }];
+}
+function startExam() {
+  if (rec) rec.abort();
+  S.run = null;
+  T = { mode: "exam", tasks: [], i: 0, r: null, tries: 0, ok: 0, n: 0, mistakes: [], learned: [], xp0: S.xp || 0, tally: {}, lesson: curLesson().id, xused: [],
+    x: { lv: "A1", phase: "screen", st: 0, blk: 0, res: [], levels: {} } };
+  T.tasks = [{ type: "intro", part: "Einstufung", title: "Your level exam", text: "We start with the basics and climb, level by level. Where it gets hard, I stop climbing and look closely at that level, lesson by lesson, to find exactly where your course should start. Grammar, words, reading, listening and writing. No feedback during the exam: you'll see everything at the end. If you don't know, say so; a guess makes the result less useful." },
+    ...xBlock("A1", "screen", 0, "First the basics: 8 questions from all of A1.")];
+  view = "teach"; render(); window.scrollTo(0, 0); onTask();
+}
+// answer check for any item; returns { ok, got }
+function xJudge(t, it) {
+  if (it.type === "mc") { const k = T.xsel; return { ok: k === it.a, got: k >= 0 ? it.opts[k] : "" }; }
+  if (it.type === "gap" || it.type === "dict") {
+    const ins = [...document.querySelectorAll("#main .gapin")].map(i => i.value.trim());
+    return { ok: ins.every((v, k) => String(it.a[k]).split("/").some(a => loose(a) === loose(v))), got: ins.join(" … ") };
+  }
+  if (it.type === "tr") {
+    const alts = T.xheard || [($("#typein")?.value || "").trim()];
+    return { ok: judgeBuild({ de: it.de, alt: it.alt || [] }, alts).v === "ok", got: alts[0] };
+  }
+  return { ok: false, got: "" };
+}
+const xAnswered = it => it.type === "mc" ? T.xsel >= 0 : it.type === "tr" ? !!(T.xheard || ($("#typein")?.value || "").trim()) : [...document.querySelectorAll("#main .gapin")].every(i => i.value.trim());
+function xGo(dk) {
+  const t = task(); if (!t || t.type !== "xq" || T.r) return;
+  const it = xItem(t);
+  if (!dk && !xAnswered(it)) return toast(it.type === "mc" ? "Pick an answer, or tap “I don't know”." : "Answer first, or tap “I don't know”.");
+  const { ok, got } = dk ? { ok: false, got: "" } : xJudge(t, it);
+  xRecord(t, it, ok, got);
+  if (T.mode === "exam") return nextTask();
+  // level check: show the answer
+  const right = xRight(it);
+  T.r = ok ? { v: "ok", title: "Richtig!", detail: it.why ? esc(it.why) : "" } : { v: "bad", title: dk ? "Here it is" : "Not quite", detail: `Correct: <b>${esc(right)}</b>${it.why ? `<br>${esc(it.why)}` : ""}` };
+  if (ok) chime(false);
+  render();
+}
+const xRight = it => it.word ? it.opts[it.a] : it.type === "mc" ? it.opts[it.a] : it.type === "tr" ? it.de : it.type === "dict" ? it.audio : (() => { let k = 0; return it.q.replace(/___/g, () => String(it.a[k++]).split("/")[0]).replace(/\s*\([^)]*\)\s*$/, ""); })();
+function xRecord(t, it, ok, got) {
+  T.n++; if (ok) T.ok++;
+  const c = course(); c.xseen = [...new Set([...(c.xseen || []), t.id || "w:" + t.w])].slice(-600);
+  if (T.mode !== "exam") {
+    const ty = tallyOf(t.lv || LESSON[it.lesson].level); ty.n++;
+    if (ok) ty.ok++; else { if (t.w) ty.words.push(t.w); ty.lessons.push(it.lesson); }
+    return save();
+  }
+  const x = T.x;
+  x.res.push({ k: t.id || "w:" + t.w, lesson: it.lesson, skill: it.skill, ok, got, blk: t.blk });
+  // the screen can't reach 7 of 8 any more: go straight to the closer look
+  const blk = x.res.filter(r => r.blk === t.blk), miss = blk.filter(r => !r.ok).length;
+  if ((x.phase === "screen" && miss > 2) || (x.phase === "screen2" && miss > 0) || (x.phase === "stage" && miss >= 5)) {
+    const end = T.tasks.findIndex((y, j) => j > T.i && y.type === "xstep");
+    if (end > T.i + 1) T.tasks.splice(T.i + 1, end - T.i - 1);
+  }
+  save();
+}
+// at the end of each block: climb, dig in, or finish
+function xStep() {
+  const x = T.x, lv = x.lv, nx = nextLevelOf(lv), blk = x.res.filter(r => r.blk === x.blk), ok = blk.filter(r => r.ok).length;
+  const L = x.levels[lv] ||= { screen: null, stages: [] };
+  let add;
+  if (x.phase === "screen") {
+    L.screen = [ok, blk.length];
+    if (blk.length >= XSCREEN && ok === blk.length - 2 && nx) add = xBlock(lv, "screen2", 0, `${ok} of ${blk.length} in ${lv}. Four more questions on what went wrong, then we decide.`);
+    else if (blk.length >= XSCREEN - 1 && ok >= blk.length - 1 && nx) { L.v = "clear"; add = xBlock(nx, "screen", 0, `${lv} is solid: ${ok} of ${blk.length}. Now ${nx}.`); }
+    else add = xBlock(lv, "stage", 0, ok >= blk.length - 1 ? `${lv} looks good. Let's make sure, part by part.` : `${lv} has some gaps. Let's find them: we go through ${lv} part by part, in course order.`);
+  } else if (x.phase === "screen2") {
+    if (ok === blk.length) { L.v = "clear"; add = xBlock(nx, "screen", 0, `All four right: ${lv} is solid. Now ${nx}.`); }
+    else add = xBlock(lv, "stage", 0, `Let's go through ${lv} part by part, in course order.`);
+  } else {
+    const s = stagesOf(lv)[x.st], rs = x.res.filter(r => s.includes(r.lesson)), sok = rs.filter(r => r.ok).length, rate = rs.length ? sok / rs.length : 0;
+    L.stages[x.st] = [sok, rs.length];
+    if (rate >= XSTAGE_PASS) {
+      if (x.st < 2) add = xBlock(lv, "stage", x.st + 1, `Lektion ${s[0]}–${s[s.length - 1]}: ${sok} of ${rs.length}. You know this part. On to the next.`);
+      else if (nx) { L.v = "mastered"; add = xBlock(nx, "screen", 0, `All of ${lv} checked: you know it. Now ${nx}.`); }
+      else { L.v = "mastered"; return xFinish(LESSONS[LESSONS.length - 1].id); }
+    } else if (rate >= 0.5 && !(x.conf ||= {})[lv + x.st]) {
+      x.conf[lv + x.st] = true;
+      add = xBlock(lv, "stage", x.st, `Lektion ${s[0]}–${s[s.length - 1]} is close. A few more questions on the parts that went wrong.`, true);
+    } else {
+      L.v = "stage";
+      const miss = rs.filter(r => !r.ok).map(r => r.lesson);
+      return xFinish(miss.length ? Math.min(...miss) : s[0]);
+    }
+  }
+  T.tasks.splice(T.i, 1, ...add);
+}
+function xSummary(start) {
+  const x = T.x, lv = LESSON[start].level, li = LEVELS.indexOf(lv), cells = {}, skills = {};
+  for (const r of x.res) {
+    const l = LESSON[r.lesson].level, c = ((cells[l] ||= {})[r.skill] ||= [0, 0]); c[1]++; if (r.ok) c[0]++;
+    if (LEVELS.indexOf(l) <= li) { const s = (skills[r.skill] ||= [0, 0]); s[1]++; if (r.ok) s[0]++; }
+  }
+  const pct = ([a, b]) => b ? a / b : 0;
+  const strong = XSKILLS.map(([k]) => k).filter(k => skills[k] && skills[k][1] >= 2 && pct(skills[k]) >= 0.8);
+  const weakSk = XSKILLS.map(([k]) => k).filter(k => skills[k] && skills[k][1] >= 2 && pct(skills[k]) < 0.6);
+  const miss = x.res.filter(r => !r.ok).sort((a, b) => a.lesson - b.lesson);
+  const near = miss.filter(r => r.lesson < start + 8 && !r.k.startsWith("w:") && ["grammar", "vocab", "writing"].includes(r.skill));
+  const topics = [...new Set(near.map(r => XB[r.k]?.topic).filter(Boolean))].slice(0, 6);
+  const words = miss.filter(r => r.k.startsWith("w:")).map(r => r.k.slice(2));
+  const ls = levelLessons(lv), known = ls.filter(L => L.id < start).length;
+  const head = known ? `${["Early", "Mid", "Upper"][Math.min(2, Math.floor(3 * known / ls.length))]} ${lv}` : li ? `${LEVELS[li - 1]} done, on to ${lv}` : "Beginner, A1";
+  return { at: Date.now(), start, lv, known, head, cells, skills, strong, weak: weakSk, topics, words, ok: x.res.filter(r => r.ok).length, n: x.res.length, levels: x.levels, miss: miss.map(r => ({ k: r.k, got: r.got })).slice(0, 40) };
+}
+function xFinish(start) {
+  const sum = xSummary(start), c = course();
+  T.x.sum = sum;
+  c.exam = sum; c.exams = [...(c.exams || []), { at: sum.at, start, head: sum.head, ok: sum.ok, n: sum.n }].slice(-8);
+  // missed words go into the review right away
+  sum.words.forEach(id => { if (!S.cards[id]) S.cards[id] = { ...card(id), s: "learn", step: 0, due: Date.now() + MIN, last: Date.now() }; });
+  const back = c.placed && start < curLesson().id;
+  if (!back) xApply(start);
+  T.tasks.splice(T.i, 1, { type: "xresult", back, from: curLesson().id });
+  addXP(30, "exam");
+  save();
+}
+// move the course to a lesson: everything before it is skipped (unless done), everything after open
+function xApply(start) {
+  const c = course(), now = Date.now();
+  for (const L of LESSONS) {
+    const st = S.lessons[L.id];
+    if (L.id < start) { if (!st?.done) S.lessons[L.id] = { ...(st || {}), started: st?.started || now, done: now, skipped: true }; }
+    else if (st?.skipped) { const { done, skipped, ...rest } = st; S.lessons[L.id] = rest; }
+  }
+  const lv = LESSON[start].level;
+  LEVELS.slice(0, LEVELS.indexOf(lv)).forEach(l => { (c.passed ||= {})[l] ||= now; });
+  LEVELS.slice(LEVELS.indexOf(lv)).forEach(l => { if (c.passed?.[l] && levelLessons(l).some(L => L.id >= start)) delete c.passed[l]; });
+  if (!S.lessons[start]?.started) S.lessons[start] = { ...(S.lessons[start] || {}), started: now };
+  c.lesson = start; c.check = null; c.remedial = null; c.placed = { at: now, level: lv, via: "exam" };
+  S.run = null; save();
+}
+// the level check at the end of a level, from the same item bank
+function xCheckItems(lv, n) {
+  const st = stagesOf(lv), all = st.flat();
+  const items = [...st.flatMap(s => xPick(x => x.skill === "grammar" && inLs(s)(x), 2)), ...xWord(all), ...xWord(all),
+    ...xPick(x => x.skill === "reading" && inLs(all)(x)), ...xPick(x => x.skill === "listening" && inLs(all)(x)),
+    ...xPick(x => x.type === "gap" && inLs(all)(x)), ...xPick(x => x.type === "tr" && inLs(all)(x))];
+  return shuffle(xFill(items, n, all)).map(t => ({ ...t, lv }));
+}
+// ----- exam screens -----
+const xLabel = t => T.mode === "exam" ? `Einstufung · ${LESSON[xItem(t).lesson].level}` : `Level check · ${t.lv}`;
+function tXq(t) {
+  const it = xItem(t), r = T.r;
+  const skill = `<span class="badge">${XSKILL[it.skill]}</span>`;
+  const blank = (q, cls) => { let k = 0; return esc(q).replace(/___/g, () => `<input class="gapin ${cls || ""}" data-k="${k++}" aria-label="Blank ${k}" autocomplete="off" autocapitalize="off" spellcheck="false" ${r ? "readonly" : ""}>`); };
+  let body = "";
+  const opts = o => `<div class="mcopts">${o.map((x, k) => `<button class="mcopt ${T.xsel === k ? "sel" : ""} ${r ? (k === it.a ? "right" : T.xsel === k ? "wrong" : "dim") : ""}" data-act="xSel" data-k="${k}" ${r ? "disabled" : ""} aria-pressed="${T.xsel === k}"><span class="kn">${k + 1}</span>${esc(x)}</button>`).join("")}</div>`;
+  const listen = `<div class="row" style="justify-content:center"><button class="btn" data-act="xPlay" ${(T.xplays || 0) >= 3 ? "disabled" : ""}>${ICON.play} ${T.xplays ? `Play again (${Math.max(0, 3 - T.xplays)} left)` : "Play"}</button></div>`;
+  if (it.word) body = `<span class="label">In German</span><span class="prompt big">${esc(it.en)}</span>${opts(it.opts)}`;
+  else if (it.skill === "reading") body = `<div class="xtext">${esc(it.text).replace(/\n/g, "<br>")}</div><div class="xq">${esc(it.q)}</div>${opts(it.opts)}`;
+  else if (it.skill === "listening" && it.type === "mc") body = `<span class="label">Listen</span>${listen}<div class="xq">${esc(it.q)}</div>${opts(it.opts)}`;
+  else if (it.type === "dict") body = `<span class="label">Listen and fill the gap</span>${listen}<div class="sentence xgap">${blank(it.q)}</div>${r ? "" : umlautRow()}`;
+  else if (it.type === "mc") body = `<div class="sentence">${esc(it.q).replace("___", "<span class=\"xblank\">___</span>")}</div>${opts(it.opts)}`;
+  else if (it.type === "gap") body = `<span class="label">Fill in the right form</span><div class="sentence xgap">${blank(it.q)}</div>${r ? "" : umlautRow()}`;
+  else if (it.type === "tr") {
+    body = `<span class="label">${micBlocked || T.xtype ? "Write it in German" : "Say or write it in German"}</span><span class="prompt big">${esc(it.en)}</span>${it.hint ? `<span class="sub small">${esc(it.hint)}</span>` : ""}`;
+    if (!r) body += micBlocked || T.xtype ? `<input id="typein" class="typein" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Auf Deutsch …" autofocus>${umlautRow()}`
+      : `<button class="mic ${rec ? "live" : ""}" data-act="xTr" aria-label="Speak">${ICON.mic}</button><div class="heard" id="heard">${rec ? "Listening…" : T.xheard ? `I heard: “${esc(T.xheard[0])}”` : "Tap and speak"}</div>${T.xheard ? `<p class="small muted">Not what you said? Tap the mic again.</p>` : ""}<button class="linkbtn small" data-act="xTypeMode">Type it instead</button>`;
+  }
+  const foot = r ? verdictHTML(r) + nextBtn() : `<div class="row" style="justify-content:center"><button class="btn primary big" data-act="xGo" autofocus>${T.mode === "exam" ? "Weiter" : "Check"}</button></div><button class="btn ghost" data-act="xDk">I don't know</button>`;
+  return `<div class="row between" style="width:100%"><span class="label">${xLabel(t)}</span>${skill}</div>${body}${foot}`;
+}
+const umlautRow = () => `<div class="umlauts">${["ä", "ö", "ü", "ß"].map(u => `<button data-act="xIns" data-ch="${u}">${u}</button>`).join("")}</div>`;
+async function xTr() {
+  const t = task();
+  try {
+    if (rec) { rec.stop(); return; }
+    const pr = listen(x => { const h = $("#heard"); if (h) h.textContent = x || "Listening…"; });
+    render();
+    const alts = await pr; if (task() !== t) return;
+    if (!alts.length) { render(); return toast("I didn't hear anything. Tap the mic and speak."); }
+    T.xheard = alts; day().spoke++; render();
+  } catch (err) { micError(err); render(); }
+}
+// the exam head: where we are on the way up, instead of a progress bar (the exam has no fixed length)
+function xHead() {
+  const x = T.x, cur = x ? x.lv : task()?.lv;
+  const steps = LEVELS.map(lv => { const v = x?.levels[lv]?.v; return `<span class="${v === "clear" || v === "mastered" ? "on" : ""} ${lv === cur ? "cur" : ""}">${v === "clear" || v === "mastered" ? "✓ " : ""}${lv}</span>`; }).join("");
+  return `<div class="progress"><button class="btn ghost" data-act="teachEnd" aria-label="Pause the exam">${ICON.back}</button><div class="lpath xpath">${steps}</div><span class="small muted num">${x ? `${x.res.length} answered` : ""}</span></div>`;
+}
+function xPct(c) { return c && c[1] ? Math.round(100 * c[0] / c[1]) : null; }
+function xGrid(sum) {
+  const lvs = LEVELS.filter(lv => sum.cells[lv]);
+  const cell = c => c ? `<td class="${xPct(c) >= 80 ? "good" : xPct(c) >= 50 ? "mid" : "low"}">${c[0]}/${c[1]}</td>` : `<td class="muted">·</td>`;
+  const verdict = lv => { const v = sum.levels[lv]?.v; return v === "clear" || v === "mastered" ? "✓" : lv === sum.lv ? "start" : ""; };
+  return `<div class="tablewrap"><table class="xgrid"><tr><th></th>${XSKILLS.map(([k, l]) => `<th title="${l}">${XSHORT[k]}</th>`).join("")}<th></th></tr>${lvs.map(lv => `<tr><th>${lv}</th>${XSKILLS.map(([k]) => cell(sum.cells[lv][k])).join("")}<td class="xv">${verdict(lv)}</td></tr>`).join("")}</table></div>`;
+}
+function xVerdictText(sum) {
+  const L = LESSON[sum.start], li = LEVELS.indexOf(sum.lv), lines = [];
+  const below = LEVELS.slice(0, li);
+  if (below.length) lines.push(`${below.join(" and ")}: you know ${below.length > 1 ? "them" : "it"}.`);
+  if (sum.levels[sum.lv]?.v === "mastered" && sum.start === LESSONS[LESSONS.length - 1].id) lines.push(`Even B2 went well. I'm starting you at the last lesson; the B2 level check comes right after it.`);
+  else if (sum.known) lines.push(`In ${sum.lv} you already know ${sum.known} of the ${levelLessons(sum.lv).length} lessons. From Lektion ${L.id} on it gets shaky, so that's where we start.`);
+  else lines.push(`${sum.lv} is where it gets hard, so we start at its first lesson.`);
+  if (sum.strong.length) lines.push(`Strong: ${sum.strong.map(k => XSKILL[k].toLowerCase()).join(", ")}.`);
+  if (sum.weak.length) lines.push(`Needs work: ${sum.weak.map(k => XSKILL[k].toLowerCase()).join(", ")}.`);
+  return lines.join(" ");
+}
+function xMissHTML(sum) {
+  if (!sum.miss.length) return "";
+  return `<details class="xreview"><summary>Your mistakes (${sum.miss.length})</summary>${sum.miss.map(m => {
+    const w = m.k.startsWith("w:") ? WORDS[m.k.slice(2)] : null, it = w ? null : XB[m.k];
+    if (!w && !it) return "";
+    const q = w ? esc(w.en) : it.type === "tr" ? esc(it.en) : it.skill === "reading" ? esc(it.q) : it.skill === "listening" ? `🔊 ${esc(it.type === "dict" ? it.q : it.q)}` : esc(it.q);
+    const right = w ? deHTML(w) : esc(xRight(it));
+    return `<div class="model"><div><div class="small muted">${q}</div><div>${m.got ? `<s class="muted">${esc(m.got)}</s> → ` : ""}<b>${right}</b></div>${it && it.why ? `<div class="small muted">${esc(it.why)}</div>` : ""}</div>${it && it.audio ? playBtn(it.audio) : w ? playBtn(w.de) : ""}</div>`;
+  }).join("")}</details>`;
+}
+function tXresult(t) {
+  const sum = T.x.sum, L = LESSON[sum.start], cur = LESSON[t.from];
+  const actions = t.back && !t.chosen
+    ? `${teacherSays(`You're at Lektion ${cur.id} now. The exam suggests going back to Lektion ${L.id}: ${esc(L.title)}. Your call.`)}<div class="row" style="justify-content:center;flex-wrap:wrap"><button class="btn primary" data-act="xBack">Go back to Lektion ${L.id}</button><button class="btn" data-act="xStay">Stay at Lektion ${cur.id}</button></div>`
+    : `<div class="row" style="justify-content:center"><button class="btn primary" data-act="teachAgain">Start Lektion ${curLesson().id}</button><button class="btn" data-act="teachDone">Later</button></div>`;
+  return `<span class="label">Einstufung · Ergebnis</span><div class="celebrate-title sumtitle">${esc(sum.head)}</div>${journeyHTML()}
+    ${teacherSays(esc(xVerdictText(sum)))}
+    ${xGrid(sum)}
+    ${sum.topics.length ? `<div class="models"><span class="label">Topics to work on</span>${sum.topics.map(x => `<div class="model"><span class="pn">·</span><span>${esc(x)}</span></div>`).join("")}</div>` : ""}
+    ${t.back && !t.chosen ? "" : `<p class="small muted">Your course continues at ${curLesson().level}, Lektion ${curLesson().id}: ${esc(curLesson().title)}. Skipped lessons stay open under Fortschritt, and their words keep coming back in your warm-ups.${sum.words.length ? ` The ${sum.words.length} word${sum.words.length > 1 ? "s" : ""} you missed are in your review already.` : ""}</p>`}
+    ${actions}
+    ${xMissHTML(sum)}`;
+}
+// home and Fortschritt: the exam for someone already placed (retake, or the first time with the new exam)
+function examPanel(where) {
+  const c = course(), e = c.exam;
+  if (where === "home" && (e || !c.placed)) return "";
+  if (where === "home") return `<section class="panel today"><span class="label">New: level exam</span>${teacherSays("Tired of the basics? This exam starts easy, climbs until it gets hard, then looks closely at that level to find your real starting lesson. Your progress stays.")}<button class="btn accent big" data-act="examStart">Take the level exam</button><p class="small muted">About 15–25 minutes.</p></section>`;
+  const prev = (c.exams || []).slice(0, -1).reverse().slice(0, 3);
+  return `<section class="panel"><span class="label">Level exam</span>${e ? `<div class="row between"><b>${esc(e.head)}</b><span class="small muted">${new Date(e.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} · ${e.ok}/${e.n} right</span></div>${xGrid(e)}${e.topics.length ? `<p class="small muted">To work on: ${e.topics.map(esc).join(", ")}.</p>` : ""}${prev.length ? `<p class="small muted">Before: ${prev.map(p => `${new Date(p.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} ${esc(p.head)}`).join(" · ")}</p>` : ""}` : `<p class="small muted">Not taken yet. It finds your level, A1 to B2, and moves your course there.</p>`}
+    <div class="row"><button class="btn" data-act="examStart">${e ? "Retake the exam" : "Take the level exam"}</button></div></section>`;
 }
 function dueWords(cap) {
   const now = Date.now();
@@ -1579,7 +1875,7 @@ function planSession() {
 function startTeach() {
   if (resumeRun()) return;
   const c = course();
-  if (!c.placed) return startPlacement();
+  if (!c.placed) return XITEMS.length ? startExam() : startPlacement();
   if (c.check) return startLevelCheck(c.check);
   const { tasks, mode } = planSession(); save();
   T = { mode, tasks, i: 0, r: null, tries: 0, hint: 0, ok: 0, n: 0, mistakes: [], learned: [], bmiss: [], xp0: S.xp || 0, lesson: curLesson().id };
@@ -1589,6 +1885,7 @@ const task = () => T && T.tasks[T.i];
 function onTask() {
   const t = task(); if (!t) return;
   if (t.type === "learn") setTimeout(() => task() === t && say(WORDS[t.id].de), 250);
+  if (t.type === "xq" && t.id && XB[t.id].audio) setTimeout(() => { if (task() === t && !T.xplays) { T.xplays = 1; say(XB[t.id].audio); render(); } }, 400);
   if (t.type === "shadow" || t.type === "talk") setTimeout(() => task() === t && say(t.text || t.item.q), 250);
   if (t.type === "recall" && !micBlocked && T.listenOk) setTimeout(() => { if (task() === t && !T.r && !rec && view === "teach") teachListen(); }, 450);
 }
@@ -1601,11 +1898,12 @@ function nextTask() {
   if (cur && cur.type === "build" && cur.last && !cur.retest) finishChain(cur.lesson, cur.gi);
   T.i++;
   if (task() && (task().type === "pcheck" || task().type === "lcheck")) evalCheck(task());
-  if (task() && ["placed", "checked"].includes(task().type)) T.done = true;
-  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.hint = 0; T.retry = null; save(); render(); window.scrollTo(0, 0); onTask(); }
+  if (task() && task().type === "xstep") xStep();
+  if (task() && ["placed", "checked", "xresult"].includes(task().type)) T.done = true;
+  if (task() && task().type === "summary") finishSession(); T.r = null; T.tries = 0; T.hint = 0; T.retry = null; T.xsel = -1; T.xheard = null; T.xtype = false; T.xplays = 0; save(); render(); window.scrollTo(0, 0); onTask(); }
 // ----- resume: the running lesson is saved with the progress (S.run), so closing the app or switching
 // devices picks up at the same step. A step that was answered but not left yet continues after it.
-const RUN_SKIP = ["r", "retry", "prev", "prevSent", "tries", "hint", "done"];
+const RUN_SKIP = ["r", "retry", "prev", "prevSent", "tries", "hint", "done", "xsel", "xheard", "xtype", "xplays"];
 function runSnap() {
   if (!T || T.done || !T.tasks) return null;
   const o = { day: today(), at: Date.now(), answered: !!T.r && ["recall", "ex", "build", "pq"].includes(task()?.type) };
@@ -1621,6 +1919,7 @@ function savedRun() {
   if (r.mode === "remedial" && !c.remedial) return null;
   if (r.mode === "check" && !c.check) return null;
   if (r.mode === "placement" && c.placed) return null;
+  if (r.mode === "exam" && r.tasks[r.i]?.type === "xresult") return null;
   return r;
 }
 function resumeRun() {
@@ -1640,7 +1939,7 @@ function vTeach() {
   const total = T.tasks.length, pct = Math.round(100 * T.i / Math.max(1, total - 1));
   const part = [...T.tasks.slice(0, T.i + 1)].reverse().find(x => x.type === "intro")?.part || "";
   const head = `<div class="progress"><button class="btn ghost" data-act="teachEnd" aria-label="End lesson">${ICON.back}</button><span class="bar"><i style="width:${pct}%"></i></span><span class="small muted">${esc(part)}</span></div>`;
-  return head + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, convo: tConvo, summary: tSummary, pq: tPq, placed: tPlaced, checked: tChecked, weekly: tWeekly })[t.type](t)}</section>`;
+  return (T.mode === "exam" ? xHead() : head) + `<section class="cardbox teach">${({ intro: tIntro, recall: tRecall, learn: tLearn, grammar: tGrammar, ex: tEx, shadow: tShadow, talk: tTalk, build: tBuild, convo: tConvo, summary: tSummary, pq: tPq, xq: tXq, xresult: tXresult, placed: tPlaced, checked: tChecked, weekly: tWeekly })[t.type](t)}</section>`;
 }
 const teacherSays = html => `<div class="teacher"><span class="avatar" aria-hidden="true">L</span><div class="bubble">${html}</div></div>`;
 const micOrType = (act, ph) => micBlocked
@@ -2370,7 +2669,7 @@ function vStats() {
       ${last7.map((x, i) => { const h = Math.round(80 * x.v / mx); return `<rect x="${i * 50 + 10}" y="${92 - h}" width="30" height="${Math.max(h, 2)}" rx="4" fill="var(--ink)" opacity="${x.v ? 1 : .2}"></rect><text x="${i * 50 + 25}" y="${88 - h}" text-anchor="middle" font-size="11" fill="var(--muted)">${x.v || ""}</text><text x="${i * 50 + 25}" y="110" text-anchor="middle" font-size="11" fill="var(--muted)">${x.met ? "🔥" : ""}${x.l}</text>`; }).join("")}
     </svg></section>
   <section class="panel"><div class="row between"><span class="label">Your way to B2</span><b class="num">${journey().pct}%</b></div>${journeyHTML()}<p class="small muted">${journey().n} of ${LESSONS.length} lessons done. ${nextMilestone()}</p>${LEVELS.map(lv => { const ls = levelLessons(lv), c = course(), nd = ls.filter(L => S.lessons[L.id]?.done).length, skipped = ls.every(L => S.lessons[L.id]?.skipped), passed = c.passed?.[lv];
-      const status = skipped ? "Passed in the placement check" : passed ? `Passed the level check, ${new Date(passed).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}` : c.check === lv ? "Level check is next" : c.remedial?.lv === lv ? "Strengthening before the check" : nd ? `${nd} of ${ls.length} lessons` : curLesson().level === lv ? "Started" : "Not yet";
+      const status = skipped ? (c.placed?.via === "exam" ? "Skipped after the level exam" : "Passed in the placement check") : passed ? `Passed the level check, ${new Date(passed).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}` : c.check === lv ? "Level check is next" : c.remedial?.lv === lv ? "Strengthening before the check" : nd ? `${nd} of ${ls.length} lessons` : curLesson().level === lv ? "Started" : "Not yet";
       return `<div class="lvrow"><b>${lv}</b><span class="bar"><i style="width:${Math.round(100 * nd / ls.length)}%"></i></span><span class="small muted">${status}</span></div>`; }).join("")}
     <p class="small muted">I decide when you move up: every lesson part done, then a level check with 80%.</p>
     <div class="row" style="flex-wrap:wrap"><button class="linkbtn small" data-act="nav" data-view="course">Look up a lesson</button><button class="linkbtn small" data-act="startReview" data-mode="${micBlocked ? "type" : "speak"}">Extra word cards</button><button class="linkbtn small" data-act="openSound">Pronunciation trainer</button></div></section>
@@ -2383,6 +2682,7 @@ function vStats() {
     <div class="row"><button class="btn" data-act="say" data-text="Hallo! Schön, dass du Deutsch lernst. Wie geht es dir?">${ICON.play} Test device voice</button><button class="btn" data-act="sayFree" data-text="Hallo Or! Schön, dass du heute wieder Deutsch übst. Was hast du am Wochenende gemacht?">${ICON.play} Test Lehrer's voice</button></div>
     ${voices.length ? "" : `<p class="note">No German voice found on this device. On Windows, add German under Settings › Time & language › Speech; on a phone, install German text-to-speech in the system settings.</p>`}
   </section>
+  ${examPanel("stats")}
   ${remindSettings()}
   ${syncHTML()}
   <section class="panel"><h2>Backup</h2><p class="muted small">Progress is stored in this browser only. Copy the code below to move it to another browser or device, and paste a code to restore.</p>
@@ -2427,9 +2727,10 @@ function learnerProfile() {
   out.push(`Grammar in this lesson: ${L.grammar.map((g, i) => g.t + (i < gi ? " (covered)" : i === gi ? " (next)" : "")).join("; ")}.`);
   if (L.cando) out.push(`Lesson goals: ${L.cando.join("; ")}.`);
   const done = LESSONS.filter(x => S.lessons[x.id]?.done).length, skipped = LESSONS.filter(x => S.lessons[x.id]?.skipped).length;
-  out.push(`Lessons finished: ${done} of ${LESSONS.length}${skipped ? `, ${skipped} skipped after the placement check` : ""}. Words seen: ${Object.keys(S.cards).length}. Streak: ${streak()} days.`);
+  out.push(`Lessons finished: ${done} of ${LESSONS.length}${skipped ? `, ${skipped} skipped after the ${c.placed?.via === "exam" ? "level exam" : "placement check"}` : ""}. Words seen: ${Object.keys(S.cards).length}. Streak: ${streak()} days.`);
   const res = Object.entries(c.results || {}).map(([lv, r]) => `${lv} ${r.kind === "pcheck" ? "placement" : "level check"} ${Math.round(r.rate * 100)}%`);
   if (res.length) out.push(`Checks: ${res.join(", ")} (80% passes).`);
+  if (c.exam) out.push(`Level exam (${new Date(c.exam.at).toISOString().slice(0, 10)}): ${c.exam.head}, course started at Lektion ${c.exam.start}. ${c.exam.strong.length ? `Strong: ${c.exam.strong.join(", ")}. ` : ""}${c.exam.weak.length ? `Weak skills: ${c.exam.weak.join(", ")}. ` : ""}${c.exam.topics.length ? `Weak topics: ${c.exam.topics.join("; ")}.` : ""}`);
   if (c.remedial) out.push(`Currently in strengthening lessons for ${c.remedial.lv || "the last level"} before retaking the check.`);
   const rates = (c.rates || []).slice(-5); if (rates.length) out.push(`Right first time in the last lessons: ${rates.map(r => Math.round(r * 100) + "%").join(", ")}.`);
   const hard = Object.keys(S.cards).filter(id => WORDS[id] && struggling(card(id))).sort((a, b) => card(b).fails - card(a).fails).slice(0, 15);
@@ -2706,6 +3007,14 @@ const A = {
   copyTeacher: () => navigator.clipboard?.writeText(subPrompt()).then(() => toast("Copied. Paste it into Claude or ChatGPT."), () => toast("Couldn't copy")),
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
+  examStart: () => { closeCel(); startExam(); },
+  xSel: d => { if (T.r) return; T.xsel = +d.k; render(); },
+  xGo: () => xGo(false), xDk: () => xGo(true),
+  xPlay: () => { const it = xItem(task()); if (!it.audio || (T.xplays || 0) >= 3) return; T.xplays = (T.xplays || 0) + 1; say(it.audio); render(); },
+  xTr: () => xTr(), xTypeMode: () => { if (rec) rec.abort(); T.xtype = true; T.xheard = null; render(); $("#typein")?.focus(); },
+  xIns: d => { const i = document.activeElement?.matches?.("#main input") ? document.activeElement : ($("#main input:placeholder-shown") || $("#typein") || [...document.querySelectorAll("#main .gapin")].find(x => !x.value) || $("#main .gapin")); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + d.ch + i.value.slice(p); i.focus(); i.setSelectionRange(p + 1, p + 1); },
+  xBack: () => { xApply(T.x.sum.start); task().chosen = true; T.done = true; save(); render(); },
+  xStay: () => { task().chosen = true; save(); render(); },
   teachNext: () => nextTask(),
   teachEnd: () => { if (rec) rec.abort(); const paused = T && !T.done && T.i > 0; save(); T = null; view = "home"; render(); if (paused) toast("Paused. Continue any time, on any device."); },
   teachDone: () => { closeCel(); T = null; view = "home"; render(); window.scrollTo(0, 0); },
@@ -2840,6 +3149,11 @@ document.addEventListener("change", e => {
 document.addEventListener("keydown", e => {
   const cel = document.querySelector(".celebrate");
   if (cel) { if (e.key === "Escape") { e.preventDefault(); closeCel(); } return; }
+  if (view === "teach" && T && task()?.type === "xq" && !T.r) {
+    if (["1", "2", "3", "4"].includes(e.key) && !e.target.matches("input, textarea")) { const b = $(`#main [data-act="xSel"][data-k="${+e.key - 1}"]`); if (b) { e.preventDefault(); b.click(); } return; }
+    if (e.key === "Enter" && !e.target.matches("button")) { e.preventDefault(); xGo(false); }
+    return;
+  }
   if (view === "teach" && T) {
     if (e.key !== "Enter" && !(e.key === " " && !e.target.matches("input, textarea"))) return;
     const b = $('#main [data-act="teachNext"]') || $('#main [data-act$="Type"]') || (e.target.matches(".gapin") && $('#main [data-act="teachExCheck"]')) || $('#main .mic') || $('#main [data-act="teachExCheck"]');

@@ -408,3 +408,22 @@ section.weekgoal { max-width: none; border-radius: var(--r); padding: 14px 18px;
 details.panel > summary { cursor: pointer; }
 .rules { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .cardbox.blitz .gbtn.picked:disabled { opacity: 1; }
+/* level exam */
+.xpath { flex: 1; justify-content: center; gap: 6px; }
+.xpath span { width: auto; height: 26px; padding: 0 10px; border-radius: 999px; font-size: .8rem; }
+.mcopt.sel { border-color: var(--ink); background: var(--surface-2); box-shadow: 0 0 0 1px var(--ink); }
+.xtext { width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; line-height: 1.55; font-size: 1.05rem; max-height: 46vh; overflow-y: auto; }
+.xq { font-weight: 700; font-size: 1.1rem; max-width: 36ch; }
+.xblank { color: var(--muted); }
+.xgap .gapin { font-size: 1.1rem; width: 7.5em; margin: 2px 0; }
+.xgrid { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.xgrid th, .xgrid td { padding: 6px 3px; text-align: center; border-bottom: 1px solid var(--line); }
+.xgrid th { font-size: .68rem; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
+.xgrid tr th:first-child { color: var(--ink); font-size: .9rem; text-align: left; }
+.xgrid td.good { color: var(--ok); font-weight: 700; }
+.xgrid td.mid { color: var(--close); font-weight: 700; }
+.xgrid td.low { color: var(--bad); font-weight: 700; }
+.xgrid td.xv { font-weight: 700; font-size: .8rem; }
+.xreview { width: 100%; text-align: left; }
+.xreview summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.xreview .model { justify-content: space-between; }

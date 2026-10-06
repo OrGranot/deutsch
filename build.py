@@ -5,7 +5,9 @@ css = (src / "style.css").read_text()
 import json
 LEVEL_FILES = [f"levels/{n}.js" for n in ["a2-1", "a2-2", "b1-1", "b1-2", "b2-1", "b2-2"] if (src / "levels" / f"{n}.js").exists() and n.split("-")[0] in __import__("os").environ.get("LEVELS", "a2 b1 b2").split()]
 BUILD_FILES = [f"build/{f.name}" for f in sorted((src / "build").glob("*.js"))]
-js = "\n".join((src / f).read_text() for f in ["audio-index.js", "data.js", *LEVEL_FILES, *BUILD_FILES, "sounds.js", "app.js"])
+import re
+EXAM_FILES = [f"exam/{f.name}" for f in sorted((src / "exam").glob("x-*.js"), key=lambda f: int(re.findall(r"\d+", f.name)[0]))]
+js = "\n".join(["const EXAM = [];"] + [(src / f).read_text() for f in ["audio-index.js", "data.js", *LEVEL_FILES, *BUILD_FILES, *EXAM_FILES, "sounds.js", "app.js"]])
 audio = {}
 AUDIO_DIR = Path(__file__).parent / "audio"
 if not AUDIO_DIR.exists(): AUDIO_DIR = Path(__file__).parent / "docs" / "audio"
