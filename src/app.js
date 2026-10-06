@@ -1782,7 +1782,7 @@ function examPanel(where) {
   if (where === "home") return `<section class="panel today"><span class="label">New: level exam</span>${teacherSays("Tired of the basics? This exam starts easy, climbs until it gets hard, then looks closely at that level to find your real starting lesson. Your progress stays.")}<button class="btn accent big" data-act="examStart">Take the level exam</button><p class="small muted">About 15–25 minutes.</p></section>`;
   const prev = (c.exams || []).slice(0, -1).reverse().slice(0, 3);
   return `<section class="panel"><span class="label">Level exam</span>${e ? `<div class="row between"><b>${esc(e.head)}</b><span class="small muted">${new Date(e.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} · ${e.ok}/${e.n} right</span></div>${xGrid(e)}${e.topics.length ? `<p class="small muted">To work on: ${e.topics.map(esc).join(", ")}.</p>` : ""}${prev.length ? `<p class="small muted">Before: ${prev.map(p => `${new Date(p.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} ${esc(p.head)}`).join(" · ")}</p>` : ""}` : `<p class="small muted">Not taken yet. It finds your level, A1 to B2, and moves your course there.</p>`}
-    <div class="row"><button class="btn" data-act="examStart">${e ? "Retake the exam" : "Take the level exam"}</button></div></section>`;
+    <div class="row"><button class="btn" data-act="examStart">${savedRun()?.mode === "exam" ? "Continue the paused exam" : e ? "Retake the exam" : "Take the level exam"}</button></div></section>`;
 }
 function dueWords(cap) {
   const now = Date.now();
@@ -1913,7 +1913,8 @@ function runSnap() {
 function savedRun() {
   const r = S.run;
   if (!r || !Array.isArray(r.tasks) || !(r.i < r.tasks.length) || r.tasks[r.i]?.type === "summary") return null;
-  if (r.day !== today() && Date.now() - (r.at || 0) > 4 * 3600e3) return null;
+  // a lesson is today's plan; a paused level exam waits up to two weeks
+  if (r.mode === "exam" ? Date.now() - (r.at || 0) > 14 * DAY : r.day !== today() && Date.now() - (r.at || 0) > 4 * 3600e3) return null;
   const c = course();
   if (r.mode === "lesson" && (r.lesson !== curLesson().id || c.remedial || c.check || !c.placed)) return null;
   if (r.mode === "remedial" && !c.remedial) return null;
@@ -3007,7 +3008,7 @@ const A = {
   copyTeacher: () => navigator.clipboard?.writeText(subPrompt()).then(() => toast("Copied. Paste it into Claude or ChatGPT."), () => toast("Couldn't copy")),
   teachStart: () => { closeCel(); startTeach(); },
   pqPick: d => pqPick(+d.k),
-  examStart: () => { closeCel(); startExam(); },
+  examStart: () => { closeCel(); if (savedRun()?.mode === "exam" && resumeRun()) return; startExam(); },
   xSel: d => { if (T.r) return; T.xsel = +d.k; render(); },
   xGo: () => xGo(false), xDk: () => xGo(true),
   xPlay: () => { const it = xItem(task()); if (!it.audio || (T.xplays || 0) >= 3) return; T.xplays = (T.xplays || 0) + 1; say(it.audio); render(); },
