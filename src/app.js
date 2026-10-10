@@ -1778,7 +1778,8 @@ function tXresult(t) {
 // home and Fortschritt: the exam for someone already placed (retake, or the first time with the new exam)
 function examPanel(where) {
   const c = course(), e = c.exam;
-  if (where === "home" && (e || !c.placed)) return "";
+  if (where === "home" && !c.placed) return "";
+  if (where === "home" && e) return `<section class="panel"><div class="row between"><span class="label">Level exam</span><span class="small muted">${new Date(e.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}</span></div><div class="row between"><b>${esc(e.head)}</b><button class="btn" data-act="examStart">${savedRun()?.mode === "exam" ? "Continue" : "Retake"}</button></div></section>`;
   if (where === "home") return `<section class="panel today"><span class="label">New: level exam</span>${teacherSays("Tired of the basics? This exam starts easy, climbs until it gets hard, then looks closely at that level to find your real starting lesson. Your progress stays.")}<button class="btn accent big" data-act="examStart">Take the level exam</button><p class="small muted">About 15–25 minutes.</p></section>`;
   const prev = (c.exams || []).slice(0, -1).reverse().slice(0, 3);
   return `<section class="panel"><span class="label">Level exam</span>${e ? `<div class="row between"><b>${esc(e.head)}</b><span class="small muted">${new Date(e.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} · ${e.ok}/${e.n} right</span></div>${xGrid(e)}${e.topics.length ? `<p class="small muted">To work on: ${e.topics.map(esc).join(", ")}.</p>` : ""}${prev.length ? `<p class="small muted">Before: ${prev.map(p => `${new Date(p.at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} ${esc(p.head)}`).join(" · ")}</p>` : ""}` : `<p class="small muted">Not taken yet. It finds your level, A1 to B2, and moves your course there.</p>`}
